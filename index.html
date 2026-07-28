@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Grow Box Console</title>
+<style>
+  :root{--bg:#0a100d;--panel:#111a15;--panel2:#0e1512;--line:#22322a;--green:#6EE7A8;--green-dim:#3f7a5c;--amber:#f0a868;--red:#e6716b;--text:#dfe8e2;--muted:#7f9488;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;padding-bottom:60px;}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#0a100d 80%,rgba(10,16,13,0));padding:22px 16px 14px;border-bottom:1px solid var(--line);}
+  .eyebrow{color:var(--green);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-bottom:4px;}
+  h1{margin:0;font-size:22px;font-weight:650;letter-spacing:-.01em;}
+  .status-row{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--muted);}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+  .dot.on{background:var(--green);box-shadow:0 0 8px var(--green);}
+  .dot.off{background:var(--red);}
+  main{padding:16px;max-width:640px;margin:0 auto;}
+  section{margin-bottom:22px;}
+  .section-title{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;}
+  input[type=text],input[type=password]{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:11px 12px;border-radius:8px;font-size:15px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  input:focus{outline:2px solid var(--green-dim);outline-offset:1px;}
+  label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px;}
+  .field{margin-bottom:12px;}
+  button{font-family:inherit;border:none;border-radius:8px;padding:11px 14px;font-size:14px;font-weight:600;cursor:pointer;}
+  .btn-primary{background:var(--green);color:#08130d;width:100%;}
+  .btn-primary:active{transform:scale(.98);}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--text);}
+  .btn-ghost:active{background:var(--panel2);}
+  .var-row,.fn-row{border-bottom:1px solid var(--line);padding:12px 0;}
+  .var-row:last-child,.fn-row:last-child{border-bottom:none;}
+  .row-top{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .name{font-weight:600;font-size:14.5px;}
+  .type{color:var(--muted);font-size:11px;margin-left:6px;font-weight:400;}
+  .value{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--green);font-size:13.5px;max-width:55%;overflow-wrap:anywhere;text-align:right;}
+  .fn-controls{display:flex;gap:8px;margin-top:10px;}
+  .fn-controls input{flex:1;}
+  .fn-controls button{flex-shrink:0;padding:11px 16px;}
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .chip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);font-size:12px;padding:6px 10px;border-radius:999px;cursor:pointer;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  .chip:active{background:var(--green-dim);color:#08130d;}
+  .last-result{font-size:11.5px;color:var(--muted);margin-top:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  .last-result.ok{color:var(--green);}
+  .last-result.err{color:var(--red);}
+  #log{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;max-height:280px;overflow-y:auto;color:var(--muted);}
+  #log div{margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed var(--line);}
+  #log div:last-child{border-bottom:none;}
+  .log-fn{color:var(--green);}
+  .log-err{color:var(--red);}
+  .hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px;}
+  .warn-banner{background:rgba(240,168,104,.08);border:1px solid rgba(240,168,104,.35);color:var(--amber);border-radius:10px;padding:12px;font-size:12.5px;line-height:1.5;margin-bottom:18px;display:none;}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted);}
+  .switch{position:relative;width:38px;height:22px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;cursor:pointer;flex-shrink:0;}
+  .switch .knob{position:absolute;top:2px;left:2px;width:16px;height:16px;background:var(--muted);border-radius:50%;transition:.15s;}
+  .switch.on{background:rgba(110,231,168,.15);border-color:var(--green-dim);}
+  .switch.on .knob{left:18px;background:var(--green);}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Particle P1 · Local Test Console</div>
+  <h1>Grow Box Console</h1>
+  <div class="status-row"><div class="dot" id="statusDot"></div><span id="statusText">Not connected</span></div>
+</header>
+<main>
+  <div class="warn-banner" id="corsWarning">Requests are being blocked from this page. Tell Claude this happened.</div>
+  <section>
+    <div class="section-title">Connect</div>
+    <div class="card">
+      <div class="field"><label for="token">Particle access token</label><input type="password" id="token" placeholder="paste your access token"></div>
+      <div class="field"><label for="deviceId">Device ID</label><input type="text" id="deviceId" value="280042000d47393035313135"></div>
+      <button class="btn-primary" onclick="connect()">Connect</button>
+      <div class="hint">Get your token: Particle Console → profile icon → Account Settings → Access Tokens.</div>
+    </div>
+  </section>
+  <section>
+    <div class="section-title">Variables — read-only, safe anytime</div>
+    <div class="card" id="varsCard"></div>
+    <div class="toggle-row"><span>Auto-refresh every 5s</span><div class="switch" id="pollSwitch" onclick="togglePoll()"><div class="knob"></div></div></div>
+  </section>
+  <section>
+    <div class="section-title">Functions — these can move real hardware</div>
+    <div class="card" id="fnsCard"></div>
+  </section>
+  <section>
+    <div class="section-title">Call log</div>
+    <div id="log"><div style="color:var(--muted)">Nothing yet. Connect above, then try a variable or function.</div></div>
+  </section>
+</main>
+<script>
+const API='https://api.particle.io/v1/devices';let token='',deviceId='',polling=null;
+const VARS=[{name:'climateCalON',type:'Integer'},{name:'phase_info_str',type:'String'},{name:'public_ip',type:'String'},{name:'sensor_info_str',type:'String'}];
+const FNS=[{name:'setRGB',hint:'status LED',presets:['FF0000,00FF00','00FF00,0000FF','FFFFFF,FFFFFF','000000,000000']},{name:'setGrowLED',hint:'grow light',presets:['1','0','100','255','50']},{name:'setFanSpd',hint:'fan speed',presets:['0','25','50','100','255']},{name:'setWaterPump',hint:'water circulation',presets:['1','0']},{name:'setAirPump',hint:'air pump',presets:['1','0']},{name:'setAC',hint:'climate/AC unit',presets:['1','0','72','22']},{name:'setEglass',hint:'smart glass panel',presets:['1','0']},{name:'setSysMode',hint:'mode toggle',presets:['0','1','2']},{name:'goToPhzNum',hint:'growth phase number',presets:['0','1','2','3']},{name:'readPhzInfo',hint:'read phase info',presets:['']},{name:'updPhzInfo',hint:'update phase info',presets:['1','0']}];
+function buildUI(){document.getElementById('varsCard').innerHTML=VARS.map(v=>`<div class="var-row" id="var-${v.name}"><div class="row-top"><div><span class="name">${v.name}</span><span class="type">${v.type}</span></div><div class="value" id="val-${v.name}">—</div></div></div>`).join('');
+document.getElementById('fnsCard').innerHTML=FNS.map(f=>`<div class="fn-row" id="fn-${f.name}"><div class="row-top"><div><span class="name">${f.name}</span><span class="type">${f.hint}</span></div></div><div class="fn-controls"><input type="text" id="arg-${f.name}" placeholder="argument"><button class="btn-ghost" onclick="callFn('${f.name}')">Call</button></div><div class="presets">${f.presets.map(p=>`<div class="chip" onclick="quickCall('${f.name}','${p}')">${p===''?'(empty)':p}</div>`).join('')}<div class="chip" onclick="runAllPresets('${f.name}')" style="border-color:var(--green-dim);color:var(--green)">▶ run all presets</div></div><div class="last-result" id="res-${f.name}"></div></div>`).join('');}
+buildUI();
+function log(msg,cls=''){const el=document.getElementById('log');const time=new Date().toLocaleTimeString();el.insertAdjacentHTML('afterbegin',`<div class="${cls}">[${time}] ${msg}</div>`);}
+function showCorsWarning(){document.getElementById('corsWarning').style.display='block';}
+async function connect(){token=document.getElementById('token').value.trim();deviceId=document.getElementById('deviceId').value.trim();if(!token||!deviceId){log('Enter a token and device ID first.','log-err');return;}
+try{const res=await fetch(`${API}/${deviceId}?access_token=${encodeURIComponent(token)}`);if(!res.ok){throw new Error('HTTP '+res.status);}const data=await res.json();const dot=document.getElementById('statusDot');const txt=document.getElementById('statusText');
+if(data.connected){dot.className='dot on';txt.textContent=`Online — ${data.name||deviceId}`;log(`Connected to ${data.name||deviceId}.`);refreshAllVars();}else{dot.className='dot off';txt.textContent='Device is offline right now';log('Reached Particle Cloud but device shows offline.','log-err');}
+}catch(e){log('Connect failed: '+e.message,'log-err');showCorsWarning();}}
+async function getVar(name){try{const res=await fetch(`${API}/${deviceId}/${name}?access_token=${encodeURIComponent(token)}`);const data=await res.json();document.getElementById(`val-${name}`).textContent=(data.result===undefined||data.result===null||data.result==='')?'(empty)':data.result;log(`${name} → <span class="log-fn">${JSON.stringify(data.result)}</span>`);}catch(e){log(`${name} read failed: ${e.message}`,'log-err');showCorsWarning();}}
+function refreshAllVars(){VARS.forEach(v=>getVar(v.name));}
+function togglePoll(){const sw=document.getElementById('pollSwitch');if(polling){clearInterval(polling);polling=null;sw.classList.remove('on');}else{if(!token){log('Connect first.','log-err');return;}sw.classList.add('on');polling=setInterval(refreshAllVars,5000);}}
+async function callFn(name,arg){if(arg===undefined)arg=document.getElementById(`arg-${name}`).value;if(!token){log('Connect first.','log-err');return;}
+try{const res=await fetch(`${API}/${deviceId}/${name}`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`access_token=${encodeURIComponent(token)}&arg=${encodeURIComponent(arg)}`});const data=await res.json();const resultEl=document.getElementById(`res-${name}`);resultEl.textContent=`arg "${arg}" → returned ${data.return_value}`;resultEl.className='last-result '+(data.return_value===-1?'err':'ok');log(`<span class="log-fn">${name}</span>("${arg}") → ${data.return_value}`);}catch(e){log(`${name}("${arg}") failed: ${e.message}`,'log-err');showCorsWarning();}}
+function quickCall(name,preset){document.getElementById(`arg-${name}`).value=preset;callFn(name,preset);}
+async function runAllPresets(name){const fn=FNS.find(f=>f.name===name);for(const p of fn.presets){await callFn(name,p);await new Promise(r=>setTimeout(r,1800));}log(`Finished cycling presets for ${name}.`);}
+</script>
+</body>
+</html>
