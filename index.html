@@ -90,7 +90,7 @@
   </section>
 </main>
 <script>
-const API='https://api.particle.io/v1/devices';let token='',deviceId='',polling=null;
+const API='https: //yourname-valname.web.val.run/v1/devices';let token='',deviceId='',polling=null;
 const VARS=[{name:'climateCalON',type:'Integer'},{name:'phase_info_str',type:'String'},{name:'public_ip',type:'String'},{name:'sensor_info_str',type:'String'}];
 const FNS=[{name:'setRGB',hint:'status LED',presets:['FF0000,00FF00','00FF00,0000FF','FFFFFF,FFFFFF','000000,000000']},{name:'setGrowLED',hint:'grow light',presets:['1','0','100','255','50']},{name:'setFanSpd',hint:'fan speed',presets:['0','25','50','100','255']},{name:'setWaterPump',hint:'water circulation',presets:['1','0']},{name:'setAirPump',hint:'air pump',presets:['1','0']},{name:'setAC',hint:'climate/AC unit',presets:['1','0','72','22']},{name:'setEglass',hint:'smart glass panel',presets:['1','0']},{name:'setSysMode',hint:'mode toggle',presets:['0','1','2']},{name:'goToPhzNum',hint:'growth phase number',presets:['0','1','2','3']},{name:'readPhzInfo',hint:'read phase info',presets:['']},{name:'updPhzInfo',hint:'update phase info',presets:['1','0']}];
 function buildUI(){document.getElementById('varsCard').innerHTML=VARS.map(v=>`<div class="var-row" id="var-${v.name}"><div class="row-top"><div><span class="name">${v.name}</span><span class="type">${v.type}</span></div><div class="value" id="val-${v.name}">—</div></div></div>`).join('');
