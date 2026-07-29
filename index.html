@@ -3,137 +3,407 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Grow Box Console</title>
+<title>Mary Grow Box</title>
 <style>
   :root{--bg:#0a100d;--panel:#111a15;--panel2:#0e1512;--line:#22322a;--green:#6EE7A8;--green-dim:#3f7a5c;--amber:#f0a868;--red:#e6716b;--text:#dfe8e2;--muted:#7f9488;}
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;padding-bottom:60px;}
-  header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#0a100d 80%,rgba(10,16,13,0));padding:22px 16px 14px;border-bottom:1px solid var(--line);}
-  .eyebrow{color:var(--green);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-bottom:4px;}
-  h1{margin:0;font-size:22px;font-weight:650;letter-spacing:-.01em;}
-  .status-row{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--muted);}
-  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;padding-bottom:70px;min-height:100vh;}
+  header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#0a100d 85%,rgba(10,16,13,0));padding:18px 16px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
+  .eyebrow{color:var(--green);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  h1{margin:2px 0 0;font-size:20px;font-weight:650;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:6px;}
   .dot.on{background:var(--green);box-shadow:0 0 8px var(--green);}
   .dot.off{background:var(--red);}
+  .statuspill{font-size:11px;color:var(--muted);display:flex;align-items:center;}
   main{padding:16px;max-width:640px;margin:0 auto;}
-  section{margin-bottom:22px;}
-  .section-title{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;}
-  input[type=text],input[type=password]{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:11px 12px;border-radius:8px;font-size:15px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
-  input:focus{outline:2px solid var(--green-dim);outline-offset:1px;}
-  label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px;}
-  .field{margin-bottom:12px;}
-  button{font-family:inherit;border:none;border-radius:8px;padding:11px 14px;font-size:14px;font-weight:600;cursor:pointer;}
-  .btn-primary{background:var(--green);color:#08130d;width:100%;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;}
+  .btn{font-family:inherit;border:none;border-radius:10px;padding:14px 16px;font-size:15px;font-weight:600;cursor:pointer;width:100%;text-align:center;display:block;margin-bottom:10px;}
+  .btn-primary{background:var(--green);color:#08130d;}
   .btn-primary:active{transform:scale(.98);}
-  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--text);}
-  .btn-ghost:active{background:var(--panel2);}
-  .var-row,.fn-row{border-bottom:1px solid var(--line);padding:12px 0;}
-  .var-row:last-child,.fn-row:last-child{border-bottom:none;}
-  .row-top{display:flex;justify-content:space-between;align-items:center;gap:10px;}
-  .name{font-weight:600;font-size:14.5px;}
-  .type{color:var(--muted);font-size:11px;margin-left:6px;font-weight:400;}
-  .value{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--green);font-size:13.5px;max-width:55%;overflow-wrap:anywhere;text-align:right;}
-  .fn-controls{display:flex;gap:8px;margin-top:10px;}
-  .fn-controls input{flex:1;}
-  .fn-controls button{flex-shrink:0;padding:11px 16px;}
-  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
-  .chip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);font-size:12px;padding:6px 10px;border-radius:999px;cursor:pointer;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
-  .chip:active{background:var(--green-dim);color:#08130d;}
-  .last-result{font-size:11.5px;color:var(--muted);margin-top:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
-  .last-result.ok{color:var(--green);}
-  .last-result.err{color:var(--red);}
-  #log{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;max-height:280px;overflow-y:auto;color:var(--muted);}
-  #log div{margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed var(--line);}
-  #log div:last-child{border-bottom:none;}
-  .log-fn{color:var(--green);}
-  .log-err{color:var(--red);}
-  .hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px;}
-  .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted);}
-  .switch{position:relative;width:38px;height:22px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;cursor:pointer;flex-shrink:0;}
-  .switch .knob{position:absolute;top:2px;left:2px;width:16px;height:16px;background:var(--muted);border-radius:50%;transition:.15s;}
-  .switch.on{background:rgba(110,231,168,.15);border-color:var(--green-dim);}
-  .switch.on .knob{left:18px;background:var(--green);}
+  .btn-ghost{background:var(--panel2);border:1px solid var(--line);color:var(--text);}
+  .btn-ghost:active{background:#16221c;}
+  .btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);}
+  .btn-row{display:flex;gap:8px;}
+  .btn-row .btn{flex:1;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .tile{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:18px 14px;text-align:center;cursor:pointer;}
+  .tile:active{background:#16221c;}
+  .tile .icon{font-size:26px;margin-bottom:6px;}
+  .tile .label{font-weight:600;font-size:14px;}
+  label{font-size:12px;color:var(--muted);display:block;margin:12px 0 5px;}
+  input[type=text],input[type=number],input[type=password],select,input[type=time]{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:11px 12px;border-radius:8px;font-size:15px;font-family:inherit;}
+  .hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:6px;}
+  .warn{font-size:12px;color:var(--amber);line-height:1.5;background:rgba(240,168,104,.08);border:1px solid rgba(240,168,104,.3);border-radius:8px;padding:10px;margin:10px 0;}
+  h2{font-size:17px;margin:0 0 12px;}
+  h3{font-size:14px;margin:0 0 8px;color:var(--green);}
+  .stageRow{border-bottom:1px solid var(--line);padding:10px 0;}
+  .stageRow:last-child{border-bottom:none;}
+  .stageName{font-weight:600;font-size:14px;}
+  .stageMeta{font-size:12px;color:var(--muted);margin-top:3px;}
+  .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--line);font-size:13.5px;}
+  .kv:last-child{border-bottom:none;}
+  .kv .k{color:var(--muted);}
+  .kv .v{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--green);}
+  .backbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--muted);font-size:13px;}
+  .backbar span{cursor:pointer;}
+  .navbar{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);display:flex;padding:8px 6px calc(8px + env(safe-area-inset-bottom));z-index:20;}
+  .navbtn{flex:1;text-align:center;padding:6px 2px;border-radius:8px;font-size:11px;color:var(--muted);cursor:pointer;}
+  .navbtn.active{color:var(--green);background:rgba(110,231,168,.08);}
+  .navbtn .ic{font-size:18px;display:block;}
+  .toggle{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line);}
+  .toggle:last-child{border-bottom:none;}
+  .logEntry{border-bottom:1px solid var(--line);padding:10px 0;}
+  .logEntry .tag{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--green);}
+  .logEntry .time{font-size:11px;color:var(--muted);float:right;}
+  textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:11px 12px;border-radius:8px;font-size:15px;font-family:inherit;min-height:70px;resize:vertical;}
+  .toast{position:fixed;bottom:80px;left:16px;right:16px;background:var(--panel);border:1px solid var(--green-dim);color:var(--green);padding:12px 14px;border-radius:10px;font-size:13px;text-align:center;z-index:30;display:none;}
 </style>
 </head>
 <body>
 <header>
-  <div class="eyebrow">Particle P1 · Product: mymary-43995</div>
-  <h1>Grow Box Console</h1>
-  <div class="status-row"><div class="dot" id="statusDot"></div><span id="statusText">Not connected</span></div>
+  <div>
+    <div class="eyebrow">Mary Grow Box</div>
+    <h1 id="headerTitle">Home</h1>
+  </div>
+  <div class="statuspill"><span class="dot" id="statusDot"></span><span id="statusText">Not connected</span></div>
 </header>
-<main>
-  <section>
-    <div class="section-title">Connect</div>
-    <div class="card">
-      <div class="field"><label for="relay">Relay URL (your val.town endpoint)</label><input type="text" id="relay" placeholder="https://yourname-valname.web.val.run"></div>
-      <div class="field"><label for="token">Particle access token</label><input type="password" id="token" placeholder="paste your access token"></div>
-      <div class="field"><label for="deviceId">Device ID</label><input type="text" id="deviceId" value="280042000d47393035313135"></div>
-      <button class="btn-primary" onclick="connect()">Connect</button>
-      <div class="hint">Nothing here is saved — you'll re-enter it if you reload this page.</div>
-    </div>
-  </section>
-  <section>
-    <div class="section-title">Variables — read-only, safe anytime</div>
-    <div class="card" id="varsCard"></div>
-    <div class="toggle-row"><span>Auto-refresh every 5s</span><div class="switch" id="pollSwitch" onclick="togglePoll()"><div class="knob"></div></div></div>
-  </section>
-  <section>
-    <div class="section-title">Functions — these can move real hardware</div>
-    <div class="card" id="fnsCard"></div>
-  </section>
-  <section>
-    <div class="section-title">Call log</div>
-    <div id="log"><div style="color:var(--muted)">Nothing yet. Connect above, then try a variable or function.</div></div>
-  </section>
-</main>
+<main id="main"></main>
+<div class="navbar">
+  <div class="navbtn" data-nav="home"><span class="ic">&#8962;</span>Home</div>
+  <div class="navbtn" data-nav="dashboard"><span class="ic">&#9678;</span>Dashboard</div>
+  <div class="navbtn" data-nav="log"><span class="ic">&#9998;</span>Log</div>
+  <div class="navbtn" data-nav="connect"><span class="ic">&#9881;</span>Connect</div>
+</div>
+<div class="toast" id="toast"></div>
+
 <script>
-let API='',token='',deviceId='',polling=null;
-const PRODUCT='mymary-43995';
-const VARS=[{name:'climateCalON',type:'Integer'},{name:'phase_info_str',type:'String'},{name:'public_ip',type:'String'},{name:'sensor_info_str',type:'String'}];
-const FNS=[{name:'setRGB',hint:'status LED',presets:['FF0000,00FF00','00FF00,0000FF','FFFFFF,FFFFFF','000000,000000']},{name:'setGrowLED',hint:'grow light',presets:['1','0','100','255','50']},{name:'setFanSpd',hint:'fan speed',presets:['0','25','50','100','255']},{name:'setWaterPump',hint:'water circulation',presets:['1','0']},{name:'setAirPump',hint:'air pump',presets:['1','0']},{name:'setAC',hint:'climate/AC unit',presets:['1','0','72','22']},{name:'setEglass',hint:'smart glass panel',presets:['1','0']},{name:'setSysMode',hint:'mode toggle',presets:['0','1','2']},{name:'goToPhzNum',hint:'growth phase number',presets:['0','1','2','3']},{name:'readPhzInfo',hint:'read phase info',presets:['']},{name:'updPhzInfo',hint:'update phase info',presets:['1','0']}];
-function buildUI(){document.getElementById('varsCard').innerHTML=VARS.map(v=>`<div class="var-row" id="var-${v.name}"><div class="row-top"><div><span class="name">${v.name}</span><span class="type">${v.type}</span></div><div class="value" id="val-${v.name}">—</div></div></div>`).join('');
-document.getElementById('fnsCard').innerHTML=FNS.map(f=>`<div class="fn-row" id="fn-${f.name}"><div class="row-top"><div><span class="name">${f.name}</span><span class="type">${f.hint}</span></div></div><div class="fn-controls"><input type="text" id="arg-${f.name}" placeholder="argument"><button class="btn-ghost" onclick="callFn('${f.name}')">Call</button></div><div class="presets">${f.presets.map(p=>`<div class="chip" onclick="quickCall('${f.name}','${p}')">${p===''?'(empty)':p}</div>`).join('')}<div class="chip" onclick="runAllPresets('${f.name}')" style="border-color:var(--green-dim);color:var(--green)">▶ run all presets</div></div><div class="last-result" id="res-${f.name}"></div></div>`).join('');}
-buildUI();
-function log(msg,cls=''){const el=document.getElementById('log');const time=new Date().toLocaleTimeString();el.insertAdjacentHTML('afterbegin',`<div class="${cls}">[${time}] ${msg}</div>`);}
-function authHeaders(extra){const h=Object.assign({'Authorization':'Bearer '+token},extra||{});return h;}
+/* ---------- config / assumptions (tune here once confirmed on real hardware) ---------- */
+const ASSUMPTIONS = {
+  ledScaleNote: "Cold/Warm LED sent as repeated hex byte scaled 0-100% (e.g. 60% = 999999). UNCONFIRMED against real hardware.",
+  timeUnit: "Sunrise_T/Sunset_T sent as minutes-since-midnight (unconfirmed)."
+};
+function pctToHex(pct){ const v=Math.round(Math.max(0,Math.min(100,pct))*2.55).toString(16).padStart(2,'0').toUpperCase(); return v+v+v; }
+function timeToMinutes(hhmm){ const parts=hhmm.split(':').map(Number); return parts[0]*60+parts[1]; }
+
+/* ---------- grow database ---------- */
+const VEG_DB = {
+  tomato:{label:'Tomato', stages:[
+    {name:'Seedling', PhaseMinDur:7,PhaseMaxDur:14, lightHours:16, AC_Temp_Day:75,AC_Temp_Night:68, Airflow:20, PUMP_ON_RATIO:30, Passing_Plt_Ht:10, coldPct:70,warmPct:40},
+    {name:'Vegetative', PhaseMinDur:14,PhaseMaxDur:28, lightHours:18, AC_Temp_Day:77,AC_Temp_Night:68, Airflow:40, PUMP_ON_RATIO:50, Passing_Plt_Ht:30, coldPct:85,warmPct:50},
+    {name:'Flowering / Fruiting', PhaseMinDur:21,PhaseMaxDur:45, lightHours:14, AC_Temp_Day:72,AC_Temp_Night:65, Airflow:60, PUMP_ON_RATIO:55, Passing_Plt_Ht:null, coldPct:70,warmPct:75}
+  ]},
+  leafy:{label:'Leafy Greens & Herbs', stages:[
+    {name:'Seedling', PhaseMinDur:5,PhaseMaxDur:10, lightHours:14, AC_Temp_Day:68,AC_Temp_Night:62, Airflow:20, PUMP_ON_RATIO:30, Passing_Plt_Ht:5, coldPct:70,warmPct:35},
+    {name:'Growth / Harvest', PhaseMinDur:14,PhaseMaxDur:35, lightHours:16, AC_Temp_Day:70,AC_Temp_Night:62, Airflow:30, PUMP_ON_RATIO:40, Passing_Plt_Ht:null, coldPct:80,warmPct:40}
+  ]},
+  peppers:{label:'Peppers & Chilies', stages:[
+    {name:'Seedling', PhaseMinDur:10,PhaseMaxDur:21, lightHours:16, AC_Temp_Day:78,AC_Temp_Night:68, Airflow:20, PUMP_ON_RATIO:30, Passing_Plt_Ht:10, coldPct:70,warmPct:40},
+    {name:'Vegetative', PhaseMinDur:21,PhaseMaxDur:35, lightHours:18, AC_Temp_Day:80,AC_Temp_Night:68, Airflow:40, PUMP_ON_RATIO:50, Passing_Plt_Ht:25, coldPct:85,warmPct:50},
+    {name:'Flowering / Fruiting', PhaseMinDur:30,PhaseMaxDur:60, lightHours:13, AC_Temp_Day:76,AC_Temp_Night:65, Airflow:60, PUMP_ON_RATIO:55, Passing_Plt_Ht:null, coldPct:70,warmPct:75}
+  ]},
+  strawberry:{label:'Strawberries', stages:[
+    {name:'Vegetative', PhaseMinDur:14,PhaseMaxDur:30, lightHours:16, AC_Temp_Day:72,AC_Temp_Night:62, Airflow:30, PUMP_ON_RATIO:40, Passing_Plt_Ht:15, coldPct:80,warmPct:45},
+    {name:'Flowering / Fruiting', PhaseMinDur:21,PhaseMaxDur:200, lightHours:13, AC_Temp_Day:68,AC_Temp_Night:60, Airflow:40, PUMP_ON_RATIO:45, Passing_Plt_Ht:null, coldPct:70,warmPct:70}
+  ]}
+};
+const HEIGHT_BY_TYPE = {indica:40, hybrid:55, sativa:70, unknown:50};
+function cannabisStages(auto, type, flowerWeeks){
+  const h = HEIGHT_BY_TYPE[type]||50;
+  const lightHrs = auto ? 20 : 18;
+  const flowerDays = Math.round((flowerWeeks||8)*7);
+  const stages = [
+    {name:'Seedling', PhaseMinDur:7,PhaseMaxDur:14, lightHours:auto?20:18, AC_Temp_Day:78,AC_Temp_Night:70, Airflow:20, PUMP_ON_RATIO:25, Passing_Plt_Ht:8, coldPct:75,warmPct:45},
+    {name:'Vegetative', PhaseMinDur:14,PhaseMaxDur:28, lightHours:lightHrs, AC_Temp_Day:auto?78:80, AC_Temp_Night:68, Airflow:40, PUMP_ON_RATIO:auto?40:45, Passing_Plt_Ht:h, coldPct:85,warmPct:50}
+  ];
+  if(auto){
+    stages.push({name:'Flower', PhaseMinDur:21,PhaseMaxDur:35, lightHours:20, AC_Temp_Day:74,AC_Temp_Night:64, Airflow:60, PUMP_ON_RATIO:45, Passing_Plt_Ht:null, coldPct:60,warmPct:80});
+  } else {
+    stages.push({name:'Flower Stretch', PhaseMinDur:10,PhaseMaxDur:14, lightHours:12, AC_Temp_Day:76,AC_Temp_Night:66, Airflow:55, PUMP_ON_RATIO:50, Passing_Plt_Ht:null, coldPct:65,warmPct:75});
+    stages.push({name:'Flower Mid/Late', PhaseMinDur:21,PhaseMaxDur:Math.max(21,flowerDays-24), lightHours:12, AC_Temp_Day:74,AC_Temp_Night:64, Airflow:65, PUMP_ON_RATIO:50, Passing_Plt_Ht:null, coldPct:55,warmPct:85});
+    stages.push({name:'Flush', PhaseMinDur:10,PhaseMaxDur:14, lightHours:12, AC_Temp_Day:72,AC_Temp_Night:62, Airflow:65, PUMP_ON_RATIO:30, Passing_Plt_Ht:null, coldPct:50,warmPct:80});
+  }
+  return stages;
+}
+
+/* ---------- state ---------- */
+let token='';
+let state = JSON.parse(localStorage.getItem('mary_state')||'null') || {
+  screen:'home', relay:'', deviceId:'280042000d47393035313135',
+  wizard:{}, activeGrow:null, connected:false, log:[]
+};
+function save(){ localStorage.setItem('mary_state', JSON.stringify(state)); }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; setTimeout(function(){t.style.display='none';},2600); }
+function go(screen){ state.screen=screen; save(); render(); }
+
+/* ---------- API ---------- */
+function apiBase(){ return state.relay.replace(/\/+$/,'') + '/v1/products/mymary-43995/devices'; }
+async function apiGet(path){
+  const res=await fetch(apiBase()+'/'+path,{headers:{'Authorization':'Bearer '+token}});
+  const text=await res.text(); var data; try{data=JSON.parse(text);}catch(e){throw new Error(text.slice(0,150));}
+  if(!res.ok) throw new Error(data.error_description||data.error||text.slice(0,150));
+  return data;
+}
+async function apiCall(fn,arg){
+  const res=await fetch(apiBase()+'/'+state.deviceId+'/'+fn,{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/x-www-form-urlencoded'},body:'arg='+encodeURIComponent(arg)});
+  const text=await res.text(); var data; try{data=JSON.parse(text);}catch(e){throw new Error(text.slice(0,150));}
+  if(!res.ok) throw new Error(data.error_description||data.error||text.slice(0,150));
+  return data.return_value;
+}
+async function getVar(name){ return (await apiGet(state.deviceId+'/'+name)).result; }
 async function connect(){
-  const relay=document.getElementById('relay').value.trim().replace(/\/+$/,'');
-  token=document.getElementById('token').value.trim();
-  deviceId=document.getElementById('deviceId').value.trim();
-  if(!relay||!token||!deviceId){log('Fill in relay URL, token, and device ID first.','log-err');return;}
-  API=`${relay}/v1/products/${PRODUCT}/devices`;
   try{
-    const res=await fetch(`${API}/${deviceId}`,{headers:authHeaders()});
-    const text=await res.text();
-    let data; try{data=JSON.parse(text);}catch(e){throw new Error('Non-JSON response: '+text.slice(0,120));}
-    if(!res.ok){throw new Error(`HTTP ${res.status}: ${data.error_description||data.error||text.slice(0,120)}`);}
-    const dot=document.getElementById('statusDot');const txt=document.getElementById('statusText');
-    if(data.connected){dot.className='dot on';txt.textContent=`Online — ${data.name||deviceId}`;log(`Connected to ${data.name||deviceId}.`);refreshAllVars();}
-    else{dot.className='dot off';txt.textContent='Device is offline right now';log('Reached Particle Cloud but device shows offline.','log-err');}
-  }catch(e){log('Connect failed: '+e.message,'log-err');}
+    const data = await apiGet(state.deviceId);
+    state.connected = !!data.connected;
+    save(); renderHeader();
+    toast(state.connected ? 'Connected' : 'Device offline right now');
+  }catch(e){ state.connected=false; save(); renderHeader(); toast('Connect failed: '+e.message); }
 }
-async function getVar(name){
-  try{const res=await fetch(`${API}/${deviceId}/${name}`,{headers:authHeaders()});const text=await res.text();let data;try{data=JSON.parse(text);}catch(e){throw new Error(text.slice(0,120));}
-  if(!res.ok){throw new Error(data.error_description||data.error||text.slice(0,120));}
-  document.getElementById(`val-${name}`).textContent=(data.result===undefined||data.result===null||data.result==='')?'(empty)':data.result;
-  log(`${name} → <span class="log-fn">${JSON.stringify(data.result)}</span>`);
-  }catch(e){log(`${name} read failed: ${e.message}`,'log-err');}
+
+/* ---------- phase push ---------- */
+async function pushStage(stage, phaseIndex, cycleId){
+  const on = timeToMinutes(state.activeGrow.lightOn||'06:00');
+  const off = (on + stage.lightHours*60) % 1440;
+  const payload = {
+    cycle_id: cycleId, selected_phase_index: phaseIndex,
+    PhaseMinDur: stage.PhaseMinDur, PhaseMaxDur: stage.PhaseMaxDur,
+    Cold_LED_BT: pctToHex(stage.coldPct), Warm_LED_BT: pctToHex(stage.warmPct),
+    Sunrise_T: on, Sunset_T: off, BT_FADE_TIME: 30,
+    AC_Temp_Day: stage.AC_Temp_Day, AC_Temp_Night: stage.AC_Temp_Night,
+    Airflow: stage.Airflow, PUMP_ON_RATIO: stage.PUMP_ON_RATIO,
+    Passing_Plt_Ht: stage.Passing_Plt_Ht===null?0:stage.Passing_Plt_Ht
+  };
+  const ret = await apiCall('updPhzInfo', JSON.stringify(payload));
+  await apiCall('goToPhzNum', String(phaseIndex));
+  return ret;
 }
-function refreshAllVars(){VARS.forEach(v=>getVar(v.name));}
-function togglePoll(){const sw=document.getElementById('pollSwitch');if(polling){clearInterval(polling);polling=null;sw.classList.remove('on');}else{if(!token){log('Connect first.','log-err');return;}sw.classList.add('on');polling=setInterval(refreshAllVars,5000);}}
-async function callFn(name,arg){
-  if(arg===undefined)arg=document.getElementById(`arg-${name}`).value;
-  if(!token){log('Connect first.','log-err');return;}
-  try{const res=await fetch(`${API}/${deviceId}/${name}`,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body:`arg=${encodeURIComponent(arg)}`});
-  const text=await res.text();let data;try{data=JSON.parse(text);}catch(e){throw new Error(text.slice(0,120));}
-  if(!res.ok){throw new Error(data.error_description||data.error||text.slice(0,120));}
-  const resultEl=document.getElementById(`res-${name}`);resultEl.textContent=`arg "${arg}" → returned ${data.return_value}`;resultEl.className='last-result '+(data.return_value===-1?'err':'ok');
-  log(`<span class="log-fn">${name}</span>("${arg}") → ${data.return_value}`);
-  }catch(e){log(`${name}("${arg}") failed: ${e.message}`,'log-err');}
+
+/* ---------- render ---------- */
+function renderHeader(){
+  document.getElementById('statusDot').className='dot '+(state.connected?'on':'off');
+  document.getElementById('statusText').textContent = state.connected?'Online':'Not connected';
+  document.querySelectorAll('.navbtn').forEach(function(b){ b.classList.toggle('active', b.dataset.nav===state.screen || (state.screen.indexOf('wizard')===0 && b.dataset.nav==='home')); });
 }
-function quickCall(name,preset){document.getElementById(`arg-${name}`).value=preset;callFn(name,preset);}
-async function runAllPresets(name){const fn=FNS.find(f=>f.name===name);for(const p of fn.presets){await callFn(name,p);await new Promise(r=>setTimeout(r,1800));}log(`Finished cycling presets for ${name}.`);}
+function render(){
+  renderHeader();
+  const m = document.getElementById('main');
+  const titles={home:'Home',dashboard:'Dashboard',log:'Grow Log',connect:'Connect'};
+  document.getElementById('headerTitle').textContent = titles[state.screen] || 'Mary Grow Box';
+  if(state.screen==='connect') return renderConnect(m);
+  if(state.screen==='home') return renderHome(m);
+  if(state.screen==='wizardCategory') return renderWizardCategory(m);
+  if(state.screen==='wizardVeg') return renderWizardVeg(m);
+  if(state.screen==='wizardCannabis') return renderWizardCannabis(m);
+  if(state.screen==='wizardStart') return renderWizardStart(m);
+  if(state.screen==='wizardConfirm') return renderWizardConfirm(m);
+  if(state.screen==='dashboard') return renderDashboard(m);
+  if(state.screen==='log') return renderLog(m);
+}
+
+function renderConnect(m){
+  m.innerHTML =
+  '<div class="card">'+
+    '<label>Relay URL (val.town endpoint)</label>'+
+    '<input type="text" id="relay" value="'+state.relay+'" placeholder="https://yourname-valname.web.val.run">'+
+    '<label>Particle access token</label>'+
+    '<input type="password" id="token" placeholder="paste token (not saved)">'+
+    '<label>Device ID</label>'+
+    '<input type="text" id="deviceId" value="'+state.deviceId+'">'+
+    '<button class="btn btn-primary" style="margin-top:14px" onclick="doConnect()">Connect</button>'+
+    '<div class="hint">Relay URL and Device ID are saved on this phone. The token is never saved &mdash; you will re-enter it each visit.</div>'+
+  '</div>';
+}
+window.doConnect = async function(){
+  state.relay = document.getElementById('relay').value.trim();
+  token = document.getElementById('token').value.trim();
+  state.deviceId = document.getElementById('deviceId').value.trim();
+  save();
+  await connect();
+  if(state.connected) go('home');
+};
+
+function renderHome(m){
+  if(!state.activeGrow){
+    m.innerHTML =
+    '<div class="card"><h2>No active grow</h2>'+
+    '<p class="hint">Set up a plant profile and start a cycle. This pushes your plan to the device; the device runs the schedule itself from there.</p>'+
+    '<button class="btn btn-primary" onclick="startWizard()">+ Start a Grow</button></div>'+
+    '<div class="card"><h3>Manual control</h3>'+
+    '<p class="hint">Want to test or drive things directly without a grow plan?</p>'+
+    '<button class="btn btn-ghost" onclick="go(\'dashboard\')">Open Dashboard</button></div>'+
+    '<div class="warn"><b>Heads up:</b> '+ASSUMPTIONS.ledScaleNote+' '+ASSUMPTIONS.timeUnit+' These get calibrated the first time real hardware is watching &mdash; adjust in the Dashboard once confirmed.</div>';
+  } else {
+    const g=state.activeGrow, st=g.stages[g.currentIndex];
+    m.innerHTML =
+    '<div class="card"><div class="eyebrow" style="margin-bottom:6px">'+g.categoryLabel+'</div>'+
+    '<h2>'+g.plantLabel+'</h2>'+
+    '<div class="kv"><div class="k">Current stage</div><div class="v">'+st.name+'</div></div>'+
+    '<div class="kv"><div class="k">Cycle ID</div><div class="v">'+g.cycleId+'</div></div>'+
+    '<div class="kv"><div class="k">Started</div><div class="v">'+new Date(g.startedAt).toLocaleDateString()+'</div></div>'+
+    '<button class="btn btn-primary" style="margin-top:14px" onclick="go(\'dashboard\')">Open Dashboard</button>'+
+    '<button class="btn btn-danger" onclick="endGrow()">End this grow</button></div>';
+  }
+}
+window.startWizard = function(){ state.wizard={}; go('wizardCategory'); };
+window.endGrow = function(){ if(confirm('End the current grow? This just clears it from the app, it does not stop the device.')){ state.activeGrow=null; save(); render(); } };
+
+function renderWizardCategory(m){
+  m.innerHTML =
+  '<div class="backbar"><span onclick="go(\'home\')">&larr; Home</span></div>'+
+  '<h2>What are you growing?</h2>'+
+  '<div class="grid2">'+
+    '<div class="tile" onclick="go(\'wizardVeg\')"><div class="icon">&#127813;</div><div class="label">Vegetable</div></div>'+
+    '<div class="tile" onclick="go(\'wizardCannabis\')"><div class="icon">&#127807;</div><div class="label">Cannabis</div></div>'+
+  '</div>';
+}
+function renderWizardVeg(m){
+  var rows='';
+  for(var k in VEG_DB){ rows += '<button class="btn btn-ghost" onclick="pickVeg(\''+k+'\')">'+VEG_DB[k].label+'</button>'; }
+  m.innerHTML = '<div class="backbar"><span onclick="go(\'wizardCategory\')">&larr; Back</span></div><h2>Choose a plant</h2><div class="card">'+rows+'</div>';
+}
+window.pickVeg = function(key){
+  const db=VEG_DB[key];
+  state.wizard = {categoryLabel:'Vegetable', plantLabel:db.label, stages:db.stages};
+  go('wizardStart');
+};
+function renderWizardCannabis(m){
+  m.innerHTML =
+  '<div class="backbar"><span onclick="go(\'wizardCategory\')">&larr; Back</span></div>'+
+  '<h2>Cannabis details</h2><div class="card">'+
+  '<label>Strain name (label only)</label><input type="text" id="strainName" placeholder="e.g. Blue Dream">'+
+  '<label>Photoperiod or autoflower?</label><select id="autoSel"><option value="0">Photoperiod</option><option value="1">Autoflower</option></select>'+
+  '<label>Type (affects expected height, not climate)</label><select id="typeSel"><option value="hybrid">Hybrid</option><option value="indica">Indica-dominant</option><option value="sativa">Sativa-dominant</option><option value="unknown">Not sure</option></select>'+
+  '<label>Breeder\'s stated flowering time (weeks)</label><input type="number" id="flowerWeeks" value="8" min="5" max="16">'+
+  '<button class="btn btn-primary" style="margin-top:14px" onclick="pickCannabis()">Continue</button></div>';
+}
+window.pickCannabis = function(){
+  const strain = document.getElementById('strainName').value.trim() || 'Unnamed strain';
+  const auto = document.getElementById('autoSel').value==='1';
+  const type = document.getElementById('typeSel').value;
+  const weeks = Number(document.getElementById('flowerWeeks').value)||8;
+  state.wizard = {categoryLabel:'Cannabis \u00b7 '+strain+' \u00b7 '+(auto?'Autoflower':'Photoperiod')+' \u00b7 '+type, plantLabel:strain, stages:cannabisStages(auto,type,weeks)};
+  go('wizardStart');
+};
+function renderWizardStart(m){
+  const stages=state.wizard.stages;
+  var rows = '<button class="btn btn-ghost" onclick="pickStartIndex(0)">Seed / Just germinated</button>';
+  for(var i=1;i<stages.length;i++){ rows += '<button class="btn btn-ghost" onclick="pickStartIndex('+i+')">Already at: '+stages[i].name+'</button>'; }
+  m.innerHTML = '<div class="backbar"><span onclick="go(\'home\')">&larr; Home</span></div><h2>Where are you starting?</h2><div class="card">'+rows+'</div>';
+}
+window.pickStartIndex = function(i){
+  state.wizard.lightOn='06:00';
+  state.wizard.startIndex=i;
+  go('wizardConfirm');
+};
+function renderWizardConfirm(m){
+  const w=state.wizard;
+  var rows='';
+  for(var i=0;i<w.stages.length;i++){
+    var s=w.stages[i];
+    rows += '<div class="stageRow"'+(i<w.startIndex?' style="opacity:.4"':'')+'>'+
+      '<div class="stageName">'+(i+1)+'. '+s.name+(i===w.startIndex?' &larr; starting here':'')+'</div>'+
+      '<div class="stageMeta">'+s.PhaseMinDur+'&ndash;'+s.PhaseMaxDur+' days &middot; '+s.lightHours+'h light &middot; '+s.AC_Temp_Day+'&deg;/'+s.AC_Temp_Night+'&deg;F day/night'+(s.Passing_Plt_Ht?(' &middot; advances at '+s.Passing_Plt_Ht+'cm'):'')+'</div></div>';
+  }
+  m.innerHTML =
+  '<div class="backbar"><span onclick="go(\'wizardStart\')">&larr; Back</span></div>'+
+  '<h2>Review the plan</h2>'+
+  '<div class="card"><label>Lights on time (light schedule anchors to this)</label><input type="time" id="lightOn" value="'+w.lightOn+'"></div>'+
+  '<div class="card"><h3>'+w.plantLabel+'</h3>'+rows+'</div>'+
+  '<div class="warn">Values above are best-effort defaults, not confirmed against your hardware yet. You can still start &mdash; you will be able to correct anything from the Dashboard once you can see real results.</div>'+
+  '<button class="btn btn-primary" onclick="confirmStart()">Start Growing</button>';
+}
+window.confirmStart = async function(){
+  const w=state.wizard;
+  w.lightOn = document.getElementById('lightOn').value;
+  const cycleId = 'cyc_'+Date.now();
+  try{
+    toast('Sending plan to device...');
+    state.activeGrow = {categoryLabel:w.categoryLabel, plantLabel:w.plantLabel, stages:w.stages, currentIndex:w.startIndex, cycleId:cycleId, lightOn:w.lightOn, startedAt:Date.now()};
+    const ret = await pushStage(w.stages[w.startIndex], w.startIndex, cycleId);
+    addLog('General', 'Started grow: '+w.plantLabel+' at stage "'+w.stages[w.startIndex].name+'"');
+    save();
+    toast('Sent (return code '+ret+'). Watch the Dashboard.');
+    go('home');
+  }catch(e){ toast('Failed: '+e.message); }
+};
+
+function parseSensorInfo(str){
+  if(!str) return null;
+  try{ return JSON.parse(str); }catch(e){ return null; }
+}
+async function renderDashboard(m){
+  m.innerHTML = '<div class="card"><p class="hint">Loading...</p></div>';
+  var sensorRaw='', phaseRaw='';
+  try{
+    if(state.connected){ sensorRaw = await getVar('sensor_info_str'); phaseRaw = await getVar('phase_info_str'); }
+  }catch(e){}
+  const sensor = parseSensorInfo(sensorRaw);
+  var sensorHtml;
+  if(!state.connected){ sensorHtml = '<p class="hint">Not connected &mdash; go to Connect first.</p>'; }
+  else if(sensor){
+    sensorHtml =
+    '<div class="kv"><div class="k">Ambient temp / RH</div><div class="v">'+(sensor.aTemp||'&mdash;')+'&deg;F / '+(sensor.aRH||'&mdash;')+'%</div></div>'+
+    '<div class="kv"><div class="k">Enclosure temp / RH</div><div class="v">'+(sensor.ceTemp||'&mdash;')+'&deg;F / '+(sensor.ceRH||'&mdash;')+'%</div></div>'+
+    '<div class="kv"><div class="k">Water level</div><div class="v">'+(sensor.wLvl!==undefined?sensor.wLvl:'&mdash;')+'</div></div>'+
+    '<div class="kv"><div class="k">Plant height (L/R)</div><div class="v">'+(sensor.leftHt||'&mdash;')+' / '+(sensor.rightHt||'&mdash;')+' cm</div></div>'+
+    '<div class="kv"><div class="k">AC target / actual</div><div class="v">'+(sensor.AcStat!==undefined?sensor.AcStat:'&mdash;')+' / '+(sensor.ActAcStat!==undefined?sensor.ActAcStat:'&mdash;')+'</div></div>';
+  } else {
+    sensorHtml = '<p class="hint">'+(sensorRaw===''?'No data yet &mdash; device is idle or just started.':'Raw: '+sensorRaw)+'</p>';
+  }
+  m.innerHTML =
+  '<div class="card"><h3>Live sensors</h3>'+sensorHtml+
+  '<button class="btn btn-ghost" style="margin-top:10px" onclick="renderDashboard(document.getElementById(\'main\'))">&#8635; Refresh</button></div>'+
+  '<div class="card"><h3>Manual control</h3>'+
+  '<p class="hint">These send commands right now. If the device re-applies its schedule at the next light/phase change, a manual change here will hold until then.</p>'+
+  '<label>Grow light (0-100)</label>'+
+  '<input type="range" min="0" max="100" value="50" id="ledSlider" oninput="document.getElementById(\'ledVal\').textContent=this.value">'+
+  '<div class="hint">Value: <span id="ledVal">50</span>%</div>'+
+  '<button class="btn btn-ghost" onclick="manualCall(\'setGrowLED\', document.getElementById(\'ledSlider\').value)">Set Grow Light</button>'+
+  '<label>Fan speed (0-100)</label>'+
+  '<input type="range" min="0" max="100" value="50" id="fanSlider" oninput="document.getElementById(\'fanVal\').textContent=this.value">'+
+  '<div class="hint">Value: <span id="fanVal">50</span>%</div>'+
+  '<button class="btn btn-ghost" onclick="manualCall(\'setFanSpd\', document.getElementById(\'fanSlider\').value)">Set Fan Speed</button>'+
+  '<div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost" onclick="manualCall(\'setWaterPump\',\'1\')">Water Pump On</button><button class="btn btn-ghost" onclick="manualCall(\'setWaterPump\',\'0\')">Off</button></div>'+
+  '<div class="btn-row"><button class="btn btn-ghost" onclick="manualCall(\'setAirPump\',\'1\')">Air Pump On</button><button class="btn btn-ghost" onclick="manualCall(\'setAirPump\',\'0\')">Off</button></div>'+
+  '<div class="btn-row"><button class="btn btn-ghost" onclick="manualCall(\'setEglass\',\'1\')">Glass Opaque</button><button class="btn btn-ghost" onclick="manualCall(\'setEglass\',\'0\')">Glass Clear</button></div>'+
+  (state.activeGrow?'<button class="btn btn-primary" style="margin-top:14px" onclick="resync()">&#8635; Force resync to current phase</button>':'')+
+  '</div>';
+}
+window.manualCall = async function(fn,arg){
+  try{ const ret = await apiCall(fn,String(arg)); toast(fn+'("'+arg+'") -> '+ret); }
+  catch(e){ toast('Failed: '+e.message); }
+};
+window.resync = async function(){
+  const g=state.activeGrow;
+  try{ const ret = await pushStage(g.stages[g.currentIndex], g.currentIndex, g.cycleId); toast('Resynced (code '+ret+')'); }
+  catch(e){ toast('Failed: '+e.message); }
+};
+
+function addLog(tag, note){ state.log.unshift({tag:tag,note:note,time:Date.now()}); save(); }
+function renderLog(m){
+  var rows='';
+  if(state.log.length===0){ rows = '<p class="hint">No entries yet.</p>'; }
+  else{
+    for(var i=0;i<state.log.length;i++){
+      var e=state.log[i];
+      rows += '<div class="logEntry"><span class="tag">'+e.tag+'</span><span class="time">'+new Date(e.time).toLocaleString()+'</span><div>'+e.note+'</div></div>';
+    }
+  }
+  m.innerHTML =
+  '<div class="card"><h3>Add entry</h3>'+
+  '<select id="logTag"><option>General</option><option>Watering</option><option>Maintenance</option><option>Reminder</option></select>'+
+  '<textarea id="logNote" placeholder="What did you do?"></textarea>'+
+  '<button class="btn btn-primary" style="margin-top:10px" onclick="submitLog()">Add to log</button></div>'+
+  '<div class="card"><h3>History</h3>'+rows+'</div>';
+}
+window.submitLog = function(){
+  const tag=document.getElementById('logTag').value, note=document.getElementById('logNote').value.trim();
+  if(!note) return;
+  addLog(tag,note); go('log'); toast('Logged');
+};
+
+/* ---------- nav ---------- */
+document.querySelectorAll('.navbtn').forEach(function(b){ b.addEventListener('click',function(){ go(b.dataset.nav); }); });
+render();
 </script>
 </body>
 </html>
