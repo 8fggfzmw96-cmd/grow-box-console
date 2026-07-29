@@ -8,7 +8,6 @@
   :root{--bg:#0a100d;--panel:#111a15;--panel2:#0e1512;--line:#22322a;--green:#6EE7A8;--green-dim:#3f7a5c;--amber:#f0a868;--red:#e6716b;--text:#dfe8e2;--muted:#7f9488;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;padding-bottom:60px;}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
   header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#0a100d 80%,rgba(10,16,13,0));padding:22px 16px 14px;border-bottom:1px solid var(--line);}
   .eyebrow{color:var(--green);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-bottom:4px;}
   h1{margin:0;font-size:22px;font-weight:650;letter-spacing:-.01em;}
@@ -50,7 +49,6 @@
   .log-fn{color:var(--green);}
   .log-err{color:var(--red);}
   .hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px;}
-  .warn-banner{background:rgba(240,168,104,.08);border:1px solid rgba(240,168,104,.35);color:var(--amber);border-radius:10px;padding:12px;font-size:12.5px;line-height:1.5;margin-bottom:18px;display:none;}
   .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted);}
   .switch{position:relative;width:38px;height:22px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;cursor:pointer;flex-shrink:0;}
   .switch .knob{position:absolute;top:2px;left:2px;width:16px;height:16px;background:var(--muted);border-radius:50%;transition:.15s;}
@@ -60,19 +58,19 @@
 </head>
 <body>
 <header>
-  <div class="eyebrow">Particle P1 · Local Test Console</div>
+  <div class="eyebrow">Particle P1 · Product: mymary-43995</div>
   <h1>Grow Box Console</h1>
   <div class="status-row"><div class="dot" id="statusDot"></div><span id="statusText">Not connected</span></div>
 </header>
 <main>
-  <div class="warn-banner" id="corsWarning">Requests are being blocked from this page. Tell Claude this happened.</div>
   <section>
     <div class="section-title">Connect</div>
     <div class="card">
+      <div class="field"><label for="relay">Relay URL (your val.town endpoint)</label><input type="text" id="relay" placeholder="https://yourname-valname.web.val.run"></div>
       <div class="field"><label for="token">Particle access token</label><input type="password" id="token" placeholder="paste your access token"></div>
       <div class="field"><label for="deviceId">Device ID</label><input type="text" id="deviceId" value="280042000d47393035313135"></div>
       <button class="btn-primary" onclick="connect()">Connect</button>
-      <div class="hint">Get your token: Particle Console → profile icon → Account Settings → Access Tokens.</div>
+      <div class="hint">Nothing here is saved — you'll re-enter it if you reload this page.</div>
     </div>
   </section>
   <section>
@@ -90,23 +88,50 @@
   </section>
 </main>
 <script>
-const API='https: //yourname-valname.web.val.run/v1/devices';let token='',deviceId='',polling=null;
+let API='',token='',deviceId='',polling=null;
+const PRODUCT='mymary-43995';
 const VARS=[{name:'climateCalON',type:'Integer'},{name:'phase_info_str',type:'String'},{name:'public_ip',type:'String'},{name:'sensor_info_str',type:'String'}];
 const FNS=[{name:'setRGB',hint:'status LED',presets:['FF0000,00FF00','00FF00,0000FF','FFFFFF,FFFFFF','000000,000000']},{name:'setGrowLED',hint:'grow light',presets:['1','0','100','255','50']},{name:'setFanSpd',hint:'fan speed',presets:['0','25','50','100','255']},{name:'setWaterPump',hint:'water circulation',presets:['1','0']},{name:'setAirPump',hint:'air pump',presets:['1','0']},{name:'setAC',hint:'climate/AC unit',presets:['1','0','72','22']},{name:'setEglass',hint:'smart glass panel',presets:['1','0']},{name:'setSysMode',hint:'mode toggle',presets:['0','1','2']},{name:'goToPhzNum',hint:'growth phase number',presets:['0','1','2','3']},{name:'readPhzInfo',hint:'read phase info',presets:['']},{name:'updPhzInfo',hint:'update phase info',presets:['1','0']}];
 function buildUI(){document.getElementById('varsCard').innerHTML=VARS.map(v=>`<div class="var-row" id="var-${v.name}"><div class="row-top"><div><span class="name">${v.name}</span><span class="type">${v.type}</span></div><div class="value" id="val-${v.name}">—</div></div></div>`).join('');
 document.getElementById('fnsCard').innerHTML=FNS.map(f=>`<div class="fn-row" id="fn-${f.name}"><div class="row-top"><div><span class="name">${f.name}</span><span class="type">${f.hint}</span></div></div><div class="fn-controls"><input type="text" id="arg-${f.name}" placeholder="argument"><button class="btn-ghost" onclick="callFn('${f.name}')">Call</button></div><div class="presets">${f.presets.map(p=>`<div class="chip" onclick="quickCall('${f.name}','${p}')">${p===''?'(empty)':p}</div>`).join('')}<div class="chip" onclick="runAllPresets('${f.name}')" style="border-color:var(--green-dim);color:var(--green)">▶ run all presets</div></div><div class="last-result" id="res-${f.name}"></div></div>`).join('');}
 buildUI();
 function log(msg,cls=''){const el=document.getElementById('log');const time=new Date().toLocaleTimeString();el.insertAdjacentHTML('afterbegin',`<div class="${cls}">[${time}] ${msg}</div>`);}
-function showCorsWarning(){document.getElementById('corsWarning').style.display='block';}
-async function connect(){token=document.getElementById('token').value.trim();deviceId=document.getElementById('deviceId').value.trim();if(!token||!deviceId){log('Enter a token and device ID first.','log-err');return;}
-try{const res=await fetch(`${API}/${deviceId}?access_token=${encodeURIComponent(token)}`);if(!res.ok){throw new Error('HTTP '+res.status);}const data=await res.json();const dot=document.getElementById('statusDot');const txt=document.getElementById('statusText');
-if(data.connected){dot.className='dot on';txt.textContent=`Online — ${data.name||deviceId}`;log(`Connected to ${data.name||deviceId}.`);refreshAllVars();}else{dot.className='dot off';txt.textContent='Device is offline right now';log('Reached Particle Cloud but device shows offline.','log-err');}
-}catch(e){log('Connect failed: '+e.message,'log-err');showCorsWarning();}}
-async function getVar(name){try{const res=await fetch(`${API}/${deviceId}/${name}?access_token=${encodeURIComponent(token)}`);const data=await res.json();document.getElementById(`val-${name}`).textContent=(data.result===undefined||data.result===null||data.result==='')?'(empty)':data.result;log(`${name} → <span class="log-fn">${JSON.stringify(data.result)}</span>`);}catch(e){log(`${name} read failed: ${e.message}`,'log-err');showCorsWarning();}}
+function authHeaders(extra){const h=Object.assign({'Authorization':'Bearer '+token},extra||{});return h;}
+async function connect(){
+  const relay=document.getElementById('relay').value.trim().replace(/\/+$/,'');
+  token=document.getElementById('token').value.trim();
+  deviceId=document.getElementById('deviceId').value.trim();
+  if(!relay||!token||!deviceId){log('Fill in relay URL, token, and device ID first.','log-err');return;}
+  API=`${relay}/v1/products/${PRODUCT}/devices`;
+  try{
+    const res=await fetch(`${API}/${deviceId}`,{headers:authHeaders()});
+    const text=await res.text();
+    let data; try{data=JSON.parse(text);}catch(e){throw new Error('Non-JSON response: '+text.slice(0,120));}
+    if(!res.ok){throw new Error(`HTTP ${res.status}: ${data.error_description||data.error||text.slice(0,120)}`);}
+    const dot=document.getElementById('statusDot');const txt=document.getElementById('statusText');
+    if(data.connected){dot.className='dot on';txt.textContent=`Online — ${data.name||deviceId}`;log(`Connected to ${data.name||deviceId}.`);refreshAllVars();}
+    else{dot.className='dot off';txt.textContent='Device is offline right now';log('Reached Particle Cloud but device shows offline.','log-err');}
+  }catch(e){log('Connect failed: '+e.message,'log-err');}
+}
+async function getVar(name){
+  try{const res=await fetch(`${API}/${deviceId}/${name}`,{headers:authHeaders()});const text=await res.text();let data;try{data=JSON.parse(text);}catch(e){throw new Error(text.slice(0,120));}
+  if(!res.ok){throw new Error(data.error_description||data.error||text.slice(0,120));}
+  document.getElementById(`val-${name}`).textContent=(data.result===undefined||data.result===null||data.result==='')?'(empty)':data.result;
+  log(`${name} → <span class="log-fn">${JSON.stringify(data.result)}</span>`);
+  }catch(e){log(`${name} read failed: ${e.message}`,'log-err');}
+}
 function refreshAllVars(){VARS.forEach(v=>getVar(v.name));}
 function togglePoll(){const sw=document.getElementById('pollSwitch');if(polling){clearInterval(polling);polling=null;sw.classList.remove('on');}else{if(!token){log('Connect first.','log-err');return;}sw.classList.add('on');polling=setInterval(refreshAllVars,5000);}}
-async function callFn(name,arg){if(arg===undefined)arg=document.getElementById(`arg-${name}`).value;if(!token){log('Connect first.','log-err');return;}
-try{const res=await fetch(`${API}/${deviceId}/${name}`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`access_token=${encodeURIComponent(token)}&arg=${encodeURIComponent(arg)}`});const data=await res.json();const resultEl=document.getElementById(`res-${name}`);resultEl.textContent=`arg "${arg}" → returned ${data.return_value}`;resultEl.className='last-result '+(data.return_value===-1?'err':'ok');log(`<span class="log-fn">${name}</span>("${arg}") → ${data.return_value}`);}catch(e){log(`${name}("${arg}") failed: ${e.message}`,'log-err');showCorsWarning();}}
+async function callFn(name,arg){
+  if(arg===undefined)arg=document.getElementById(`arg-${name}`).value;
+  if(!token){log('Connect first.','log-err');return;}
+  try{const res=await fetch(`${API}/${deviceId}/${name}`,{method:'POST',headers:authHeaders({'Content-Type':'application/x-www-form-urlencoded'}),body:`arg=${encodeURIComponent(arg)}`});
+  const text=await res.text();let data;try{data=JSON.parse(text);}catch(e){throw new Error(text.slice(0,120));}
+  if(!res.ok){throw new Error(data.error_description||data.error||text.slice(0,120));}
+  const resultEl=document.getElementById(`res-${name}`);resultEl.textContent=`arg "${arg}" → returned ${data.return_value}`;resultEl.className='last-result '+(data.return_value===-1?'err':'ok');
+  log(`<span class="log-fn">${name}</span>("${arg}") → ${data.return_value}`);
+  }catch(e){log(`${name}("${arg}") failed: ${e.message}`,'log-err');}
+}
 function quickCall(name,preset){document.getElementById(`arg-${name}`).value=preset;callFn(name,preset);}
 async function runAllPresets(name){const fn=FNS.find(f=>f.name===name);for(const p of fn.presets){await callFn(name,p);await new Promise(r=>setTimeout(r,1800));}log(`Finished cycling presets for ${name}.`);}
 </script>
