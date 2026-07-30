@@ -507,12 +507,21 @@ window.confirmStart = async function(){
   w.lightOn = document.getElementById('lightOn').value;
   const cycleId = 'cyc_'+Date.now();
   try{
-    toast('Sending plan to device...');
+    toast('Sending full plan to device (all stages)...');
     state.activeGrow = {categoryLabel:w.categoryLabel, plantLabel:w.plantLabel, stages:w.stages, currentIndex:w.startIndex, cycleId:cycleId, lightOn:w.lightOn, startedAt:Date.now()};
-    const ret = await pushStage(w.stages[w.startIndex], w.startIndex, cycleId);
-    addLog('General', 'Started grow: '+w.plantLabel+' at stage "'+w.stages[w.startIndex].name+'"');
+    /* Push every stage's phase data in order (index 0..N), not just the starting one.
+       Reasoning: the real app's cycle-creation call bundled a whole recipe of phases together,
+       and the device tracks "num_of_phase" internally, so it may need every phase defined
+       before it activates. Doing this can't hurt: each call is independently valid. */
+    var lastRet = null;
+    for(var i=0;i<w.stages.length;i++){
+      lastRet = await pushStage(w.stages[i], i, cycleId);
+      await new Promise(function(r){ setTimeout(r, 400); });
+    }
+    await apiCall('goToPhzNum', String(w.startIndex));
+    addLog('General', 'Started grow: '+w.plantLabel+' at stage "'+w.stages[w.startIndex].name+'" ('+w.stages.length+' phases pushed)');
     save();
-    toast('Sent (return code '+ret+'). Check Vitals.');
+    toast('Sent all '+w.stages.length+' phases (last code '+lastRet+'). Check Vitals in a minute.');
     go('vitals');
   }catch(e){ toast('Failed: '+e.message); }
 };
