@@ -104,12 +104,9 @@ const AC_MODES = ['Off','A/C','Heating'];
 const AC_MODE_VALUE = {Off:'0','A/C':'1',Heating:'2'};
 const PUMP_LEVELS = ['Off','Quiet','Default','Max'];
 const PUMP_VALUE = {Off:'0',Quiet:'25',Default:'40',Max:'110'};
-const AIRFLOW_TIERS = ['Low','Normal','Max'];
 const AIRFLOW_VALUE = {Low:200,Normal:500,Max:850};
-const RATIO_TIERS = ['Off','30m Interval','Always On'];
 const RATIO_VALUE = {Off:0,'30m Interval':50,'Always On':100};
 
-function hexPair(n){ return Math.round(n).toString(16).padStart(2,'0').toUpperCase(); }
 function localTimeToUtcSeconds(hhmm){
   const p=hhmm.split(':').map(Number);
   const now=new Date(); now.setHours(p[0],p[1],0,0);
@@ -167,21 +164,41 @@ let state = JSON.parse(localStorage.getItem('mary_state')||'null') || {
   screen:'vitals', relay:'', deviceId:'280042000d47393035313135',
   wizard:{}, activeGrow:null, connected:false, log:[],
   lightLevels:{vegFront:'Off',vegTop:'Off',vegBack:'Off',flowerFront:'Off',flowerTop:'Off',flowerBack:'Off'},
-  eglassClear:false, deviceColor:'#3fa1d7'
+  eglassClear:false, deviceColor:'#3fa1d7', tempUnit:'C', autoRefresh:false, lastRefreshed:null
 };
+/* Token never persists, so connection state can't be trusted across a fresh page load either -
+   without this, the header could show "Online" from before while every real call would fail. */
+state.connected = false;
+if(state.autoRefresh===undefined) state.autoRefresh=false;
+if(state.tempUnit===undefined) state.tempUnit='C';
+let refreshTimer=null;
 function save(){ localStorage.setItem('mary_state', JSON.stringify(state)); }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; setTimeout(function(){t.style.display='none';},2600); }
-function go(screen){ state.screen=screen; save(); render(); }
+function fmtTemp(c){
+  if(c===undefined||c===null) return '-';
+  if(state.tempUnit==='F') return Math.round(c*9/5+32)+'\u00b0F';
+  return c+'\u00b0C';
+}
+function stopAutoRefresh(){ if(refreshTimer){ clearInterval(refreshTimer); refreshTimer=null; } }
+function startAutoRefreshIfNeeded(){
+  stopAutoRefresh();
+  if(!state.autoRefresh) return;
+  if(state.screen==='vitals') refreshTimer=setInterval(function(){ if(state.screen==='vitals') renderVitals(document.getElementById('main')); }, 15000);
+  if(state.screen==='sensors') refreshTimer=setInterval(function(){ if(state.screen==='sensors') renderSensors(document.getElementById('main')); }, 15000);
+}
+function go(screen){ state.screen=screen; save(); render(); startAutoRefreshIfNeeded(); }
 
 /* ---------- API ---------- */
 function apiBase(){ return state.relay.replace(/\/+$/,'') + '/v1/products/mymary-43995/devices'; }
 async function apiGet(path){
+  if(!token){ throw new Error('Not connected on this page load - go to Connect and re-enter your token, then try again.'); }
   const res=await fetch(apiBase()+'/'+path,{headers:{'Authorization':'Bearer '+token}});
   const text=await res.text(); var data; try{data=JSON.parse(text);}catch(e){throw new Error(text.slice(0,150));}
   if(!res.ok) throw new Error(data.error_description||data.error||text.slice(0,150));
   return data;
 }
 async function apiCall(fn,arg){
+  if(!token){ throw new Error('Not connected on this page load - go to Connect and re-enter your token, then try again.'); }
   const res=await fetch(apiBase()+'/'+state.deviceId+'/'+fn,{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/x-www-form-urlencoded'},body:'args='+encodeURIComponent(arg)});
   const text=await res.text(); var data; try{data=JSON.parse(text);}catch(e){throw new Error(text.slice(0,150));}
   if(!res.ok) throw new Error(data.error_description||data.error||text.slice(0,150));
@@ -237,6 +254,7 @@ function render(){
   if(state.screen==='wizardCannabis') return renderWizardCannabis(m);
   if(state.screen==='wizardStart') return renderWizardStart(m);
   if(state.screen==='wizardConfirm') return renderWizardConfirm(m);
+  if(state.screen==='wizardPlanView') return renderPlanView(m);
   if(state.screen==='log') return renderLog(m);
 }
 
@@ -264,22 +282,24 @@ window.doConnect = async function(){
 
 /* ---------- VITALS ---------- */
 function parseJsonSafe(str){ if(!str) return null; try{ return JSON.parse(str); }catch(e){ return null; } }
-function daysSince(ts){ return Math.floor((Date.now()-ts)/86400000); }
-function nextFeedDays(){
-  if(!state.activeGrow) return '-';
-  const days = daysSince(state.activeGrow.startedAt);
-  const rem = 7 - (days % 7);
-  return rem<=0?7:rem;
-}
 async function renderVitals(m){
   m.innerHTML = '<div class="card"><p class="hint">Loading...</p></div>';
   var sensorRaw='', phaseRaw='';
   try{
     if(state.connected){ sensorRaw = await getVar('sensor_info_str'); phaseRaw = await getVar('phase_info_str'); }
   }catch(e){}
+  if(state.screen!=='vitals') return; /* user navigated away while this was loading - don't overwrite */
+  state.lastRefreshed = Date.now(); save();
   const sensor = parseJsonSafe(sensorRaw);
+  const phase = parseJsonSafe(phaseRaw);
   const g = state.activeGrow;
+  var mismatched = false;
+  if(g && phase && phase.curr_phase_index!==undefined && phase.curr_phase_index>=0 && phase.curr_phase_index<g.stages.length && phase.curr_phase_index!==g.currentIndex){
+    g.currentIndex = phase.curr_phase_index; mismatched = true; save();
+  }
   const stage = g ? g.stages[g.currentIndex] : null;
+  const deviceStartMs = phase && phase.cyc_start_epoch ? phase.cyc_start_epoch*1000 : null;
+  const effectiveStart = g ? (deviceStartMs || g.startedAt) : null;
 
   var html = '';
   if(!state.connected){ html += '<div class="warn">Not connected. Go to the Connect tab first.</div>'; }
@@ -287,6 +307,10 @@ async function renderVitals(m){
   html += '<div class="toprow">'+
     '<div class="chip"><span>E-Glass '+(state.eglassClear?'Clear':'Opaque')+'</span><div class="switch'+(state.eglassClear?' on':'')+'" onclick="toggleEglass()"><div class="knob"></div></div></div>'+
     '<div class="chip" onclick="go(\'manual\')"><span>Manual</span><span style="color:var(--muted)">&rsaquo;</span></div>'+
+  '</div>';
+  html += '<div class="toprow">'+
+    '<div class="chip" onclick="toggleUnit()"><span>Units</span><span style="color:var(--green);font-weight:600">'+state.tempUnit+'</span></div>'+
+    '<div class="chip"><span>Auto-refresh</span><div class="switch'+(state.autoRefresh?' on':'')+'" onclick="toggleAutoRefresh()"><div class="knob"></div></div></div>'+
   '</div>';
 
   if(!g){
@@ -296,9 +320,12 @@ async function renderVitals(m){
     html += '<div class="card"><div class="eyebrow" style="margin-bottom:4px">'+g.categoryLabel+'</div><h2>'+g.plantLabel+'</h2>'+
     '<div class="statgrid">'+
       '<div><div class="n">'+stage.name+'</div><div class="l">STAGE</div></div>'+
-      '<div><div class="n">'+daysSince(g.startedAt)+'</div><div class="l">DAYS OLD</div></div>'+
-      '<div><div class="n">'+nextFeedDays()+'d</div><div class="l">NEXT FEED</div></div>'+
+      '<div><div class="n">'+Math.floor((Date.now()-effectiveStart)/86400000)+'</div><div class="l">DAYS OLD</div></div>'+
+      '<div><div class="n">'+(7-(Math.floor((Date.now()-effectiveStart)/86400000)%7)||7)+'d</div><div class="l">NEXT FEED</div></div>'+
     '</div>'+
+    (mismatched?'<div class="warn">Device is actually on a different stage than this app expected &mdash; corrected automatically just now from the device\'s own status.</div>':'')+
+    (deviceStartMs?'<div class="confirmed">Confirmed by device: cycle running since '+new Date(deviceStartMs).toLocaleString()+(phase.cycle_id?(' (cycle_id: '+phase.cycle_id+')'):'')+'. If this survived a power loss, that\'s the device\'s own resume-from-flash working, not the app.</div>':'<div class="hint">Device hasn\'t confirmed a running cycle yet on its own status string.</div>')+
+    '<button class="btn btn-ghost" style="margin-top:10px" onclick="go(\'wizardPlanView\')">View full plan</button>'+
     '<button class="btn btn-danger" onclick="endGrow()">End this grow</button></div>';
   }
 
@@ -307,24 +334,26 @@ async function renderVitals(m){
     '<div class="kv"><div class="k">Stage</div><div class="v">'+(stage?stage.name:'-')+'</div></div></div>';
 
   html += '<div class="card"><h3>Climate</h3>'+
-    '<div class="kv"><div class="k">Ambient temp / RH</div><div class="v">'+(sensor?((sensor.aTemp!==undefined?sensor.aTemp:'-')+'&deg;C / '+(sensor.aRH!==undefined?sensor.aRH:'-')+'%'):'-')+'</div></div>'+
-    '<div class="kv"><div class="k">Chamber temp / RH</div><div class="v">'+(sensor?((sensor.ceTemp!==undefined?sensor.ceTemp:'-')+'&deg;C / '+(sensor.ceRH!==undefined?sensor.ceRH:'-')+'%'):'-')+'</div></div>'+
+    '<div class="kv"><div class="k">Ambient temp / RH</div><div class="v">'+(sensor?(fmtTemp(sensor.aTemp)+' / '+(sensor.aRH!==undefined?sensor.aRH:'-')+'%'):'-')+'</div></div>'+
+    '<div class="kv"><div class="k">Chamber temp / RH</div><div class="v">'+(sensor?(fmtTemp(sensor.ceTemp)+' / '+(sensor.ceRH!==undefined?sensor.ceRH:'-')+'%'):'-')+'</div></div>'+
     '<div class="kv"><div class="k">AC state</div><div class="v">'+(sensor&&sensor.AcStat!==undefined?(AC_MODES[sensor.AcStat]||sensor.AcStat):'-')+'</div></div></div>';
 
   html += '<div class="card"><h3>Reservoir</h3>'+
     '<div class="kv"><div class="k">Water level</div><div class="v">'+(sensor&&sensor.wLvl!==undefined?sensor.wLvl+'%':'-')+'</div></div>'+
-    '<div class="kv"><div class="k">Water temp</div><div class="v">'+(sensor&&sensor.wTemp!==undefined?sensor.wTemp+'&deg;C':'-')+'</div></div>'+
-    '<div class="kv"><div class="k">Next feed</div><div class="v">'+nextFeedDays()+' days</div></div></div>';
+    '<div class="kv"><div class="k">Water temp</div><div class="v">'+(sensor?fmtTemp(sensor.wTemp):'-')+'</div></div>'+
+    '<div class="kv"><div class="k">Next feed</div><div class="v">'+(g?(7-(Math.floor((Date.now()-effectiveStart)/86400000)%7)||7)+' days':'-')+'</div></div></div>';
 
   html += '<div class="card"><h3>Day / Night</h3>'+
     '<div class="kv"><div class="k">Light hours</div><div class="v">'+(stage?stage.lightHours+'h':'-')+'</div></div>'+
     '<div class="kv"><div class="k">Lights on</div><div class="v">'+(g?g.lightOn:'-')+' (local)</div></div>'+
     '<div class="kv"><div class="k">Lights off</div><div class="v">'+(g&&stage?(function(){var on=localTimeToUtcSeconds(g.lightOn);var off=(on+stage.lightHours*3600)%86400;return utcSecondsToLocalClock(off);})():'-')+' (local)</div></div></div>';
 
-  html += '<button class="btn btn-ghost" style="margin-top:4px" onclick="renderVitals(document.getElementById(\'main\'))">&#8635; Refresh</button>';
+  html += '<button class="btn btn-ghost" style="margin-top:4px" onclick="renderVitals(document.getElementById(\'main\'))">&#8635; Refresh'+(state.lastRefreshed?(' &middot; last checked '+new Date(state.lastRefreshed).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})):'')+'</button>';
 
   m.innerHTML = html;
 }
+window.toggleUnit = function(){ state.tempUnit = state.tempUnit==='C'?'F':'C'; save(); renderVitals(document.getElementById('main')); };
+window.toggleAutoRefresh = function(){ state.autoRefresh = !state.autoRefresh; save(); startAutoRefreshIfNeeded(); render(); };
 window.toggleEglass = async function(){
   state.eglassClear = !state.eglassClear; save();
   try{ await apiCall('setEglass', state.eglassClear?'1':'0'); renderVitals(document.getElementById('main')); }
@@ -332,6 +361,33 @@ window.toggleEglass = async function(){
 };
 window.startWizard = function(){ state.wizard={}; go('wizardCategory'); };
 window.endGrow = function(){ if(confirm('End the current grow? This clears it from the app, it does not stop the device.')){ state.activeGrow=null; save(); render(); } };
+function renderPlanView(m){
+  const g = state.activeGrow;
+  if(!g){ go('vitals'); return; }
+  var rows='';
+  g.stages.forEach(function(s,i){
+    rows += '<div class="stageRow">'+
+      '<div class="stageName">'+(i+1)+'. '+s.name+(i===g.currentIndex?' &larr; current':'')+'</div>'+
+      '<div class="stageMeta">'+s.PhaseMinDur+'&ndash;'+s.PhaseMaxDur+' days &middot; '+s.lightHours+'h light &middot; '+s.tempDay+'&deg;/'+s.tempNight+'&deg;C day/night &middot; airflow '+s.airflow+' &middot; pump '+s.pump+(s.plantHeight?(' &middot; advances at '+s.plantHeight+'cm'):'')+'</div>'+
+      (i===g.currentIndex?'':'<button class="btn btn-ghost" style="margin-top:8px" onclick="jumpToPhase('+i+')">Jump to this phase now</button>')+
+    '</div>';
+  });
+  m.innerHTML =
+  '<div class="backbar"><span onclick="go(\'vitals\')">&larr; Vitals</span></div>'+
+  '<div class="card"><h3>'+g.plantLabel+' &mdash; full plan</h3>'+rows+'</div>'+
+  '<div class="hint">Cycle ID: '+g.cycleId+'</div>';
+}
+window.jumpToPhase = async function(i){
+  const g = state.activeGrow;
+  if(!confirm('Manually jump to phase "'+g.stages[i].name+'"? This overrides the automatic timing/height-based advance for this phase.')) return;
+  try{
+    const ret = await pushStage(g.stages[i], i, g.cycleId);
+    g.currentIndex = i; save();
+    addLog('General', 'Manually jumped to phase "'+g.stages[i].name+'"');
+    toast('Jumped to '+g.stages[i].name+' (code '+ret+')');
+    go('vitals');
+  }catch(e){ toast('Failed: '+e.message); }
+};
 
 /* ---------- SENSORS (raw dump) ---------- */
 const SENSOR_FIELDS = [
@@ -355,8 +411,10 @@ async function renderSensors(m){
   m.innerHTML = '<div class="card"><p class="hint">Loading...</p></div>';
   var sensorRaw='';
   try{ if(state.connected){ sensorRaw = await getVar('sensor_info_str'); } }catch(e){}
+  if(state.screen!=='sensors') return; /* user navigated away while this was loading */
   const sensor = parseJsonSafe(sensorRaw);
   var html='';
+  html += '<div class="toprow"><div class="chip"><span>Auto-refresh</span><div class="switch'+(state.autoRefresh?' on':'')+'" onclick="toggleAutoRefresh()"><div class="knob"></div></div></div></div>';
   if(!state.connected){ html += '<div class="warn">Not connected. Go to the Connect tab.</div>'; }
   else if(!sensor){ html += '<div class="card"><p class="hint">'+(sensorRaw===''?'No data yet. If you just plugged sensors into a USB-only-powered board, this should start filling in once the device reads them &mdash; tap Refresh.':'Raw (unparsed): '+sensorRaw)+'</p></div>'; }
   else {
