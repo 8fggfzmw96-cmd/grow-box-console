@@ -490,7 +490,7 @@ window.manualCall = async function(fn,arg){
 };
 window.resync = async function(){
   const g=state.activeGrow;
-  try{ const ret = await pushStage(g.stages[g.currentIndex], g.currentIndex, g.cycleId); toast('Resynced (code '+ret+')'); }
+  try{ await apiCall('setSysMode','Growing'); const ret = await pushStage(g.stages[g.currentIndex], g.currentIndex, g.cycleId); toast('Resynced (code '+ret+')'); }
   catch(e){ toast('Failed: '+e.message); }
 };
 
@@ -564,13 +564,12 @@ window.confirmStart = async function(){
   const w=state.wizard;
   w.lightOn = document.getElementById('lightOn').value;
   const cycleId = 'cyc_'+Date.now();
+  state.activeGrow = {categoryLabel:w.categoryLabel, plantLabel:w.plantLabel, stages:w.stages, currentIndex:w.startIndex, cycleId:cycleId, lightOn:w.lightOn, startedAt:Date.now()};
+  save(); /* save immediately, before any network calls - so closing the app mid-sequence can't lose this */
   try{
+    toast('Telling device it\'s actively growing...');
+    await apiCall('setSysMode', 'Growing');
     toast('Sending full plan to device (all stages)...');
-    state.activeGrow = {categoryLabel:w.categoryLabel, plantLabel:w.plantLabel, stages:w.stages, currentIndex:w.startIndex, cycleId:cycleId, lightOn:w.lightOn, startedAt:Date.now()};
-    /* Push every stage's phase data in order (index 0..N), not just the starting one.
-       Reasoning: the real app's cycle-creation call bundled a whole recipe of phases together,
-       and the device tracks "num_of_phase" internally, so it may need every phase defined
-       before it activates. Doing this can't hurt: each call is independently valid. */
     var lastRet = null;
     for(var i=0;i<w.stages.length;i++){
       lastRet = await pushStage(w.stages[i], i, cycleId);
@@ -581,7 +580,7 @@ window.confirmStart = async function(){
     save();
     toast('Sent all '+w.stages.length+' phases (last code '+lastRet+'). Check Vitals in a minute.');
     go('vitals');
-  }catch(e){ toast('Failed: '+e.message); }
+  }catch(e){ toast('Partially sent - grow is saved, but: '+e.message); go('vitals'); }
 };
 
 /* ---------- LOG ---------- */
