@@ -99,6 +99,12 @@
 <script>
 /* ---------- CONFIRMED constants, decoded directly from Mary's own app code ---------- */
 /* CHANGELOG
+   v6 - Relay bug found: it was saved as type "script" instead of "http" in val.town,
+        so it never had a live URL - not something visible from the code itself. Fixed
+        on val.town's side. Made pushRemoteState report success/failure instead of
+        silently swallowing errors. Connect now auto-uploads a local grow to the relay
+        if the relay has nothing saved yet (fixes exactly the stuck state you hit).
+        Added a manual "Push this grow to the relay now" button as a fallback.
    v5 - Added relay-backed state storage (val.town SQLite) so the active grow survives
         Private Browsing and works from any device/browser, not just this phone's local
         storage. Push happens on start/end/jump/auto-correct; pull happens on Connect.
@@ -116,7 +122,7 @@
    v1 - First working version: Vitals dashboard, plant/stage picker wizard, manual
         control, log. Talks to Particle via a val.town relay (browser CORS workaround).
 */
-const APP_VERSION = 'v5 - relay-backed state (survives Private Browsing)';
+const APP_VERSION = 'v6 - relay auto-upload fix + visible sync errors';
 const LEVELS = ['Off','Low','Medium','High'];
 const LEVEL_HEX = {Off:'00',Low:'55',Medium:'AA',High:'FF'};
 const AC_MODES = ['Off','A/C','Heating'];
@@ -180,11 +186,12 @@ function cannabisStages(auto, type, flowerWeeks){
 /* ---------- remote state (survives Private Browsing / different devices) ---------- */
 function stateUrl(){ return state.relay.replace(/\/+$/,'') + '/state/' + state.deviceId; }
 async function pushRemoteState(){
-  if(!state.relay || !state.deviceId) return;
+  if(!state.relay || !state.deviceId) return false;
   try{
-    await fetch(stateUrl(), {method:'POST', headers:{'Content-Type':'application/json'},
+    const res = await fetch(stateUrl(), {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({activeGrow: state.activeGrow, lightLevels: state.lightLevels, eglassClear: state.eglassClear, deviceColor: state.deviceColor})});
-  }catch(e){ /* best effort - local save already happened, this just failed to sync */ }
+    return res.ok;
+  }catch(e){ return false; }
 }
 async function pullRemoteState(){
   if(!state.relay || !state.deviceId) return false;
@@ -327,7 +334,12 @@ window.doConnect = async function(){
   if(state.connected){
     toast('Checking for a saved grow on the relay...');
     const found = await pullRemoteState();
-    if(found) toast('Restored saved grow from relay.');
+    if(found){
+      toast('Restored saved grow from relay.');
+    } else if(state.activeGrow){
+      const pushed = await pushRemoteState();
+      toast(pushed ? 'No saved grow on relay yet - uploaded this browser\'s grow to it now.' : 'Relay has nothing saved, and pushing this browser\'s grow to it failed - check the relay is reachable.');
+    }
     go('vitals');
   }
 };
@@ -378,6 +390,7 @@ async function renderVitals(m){
     (mismatched?'<div class="warn">Device is actually on a different stage than this app expected &mdash; corrected automatically just now from the device\'s own status.</div>':'')+
     (deviceStartMs?'<div class="confirmed">Confirmed by device: cycle running since '+new Date(deviceStartMs).toLocaleString()+(phase.cycle_id?(' (cycle_id: '+phase.cycle_id+')'):'')+'. If this survived a power loss, that\'s the device\'s own resume-from-flash working, not the app.</div>':'<div class="hint">Device hasn\'t confirmed a running cycle yet on its own status string.</div>')+
     '<button class="btn btn-ghost" style="margin-top:10px" onclick="go(\'wizardPlanView\')">View full plan</button>'+
+    '<button class="btn btn-ghost" onclick="manualSync()">&#8593; Push this grow to the relay now</button>'+
     '<button class="btn btn-danger" onclick="endGrow()">End this grow</button></div>';
   }
 
@@ -412,6 +425,11 @@ window.toggleEglass = async function(){
   catch(e){ toast('Failed: '+e.message); }
 };
 window.startWizard = function(){ state.wizard={}; go('wizardCategory'); };
+window.manualSync = async function(){
+  toast('Pushing to relay...');
+  const ok = await pushRemoteState();
+  toast(ok ? 'Synced to relay.' : 'Sync failed - check relay is reachable.');
+};
 window.endGrow = function(){ if(confirm('End the current grow? This clears it from the app, it does not stop the device.')){ state.activeGrow=null; save(); pushRemoteState(); render(); } };
 function renderPlanView(m){
   const g = state.activeGrow;
