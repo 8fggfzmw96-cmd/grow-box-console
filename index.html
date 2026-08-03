@@ -98,6 +98,7 @@
 
 <script>
 /* ---------- CONFIRMED constants, decoded directly from Mary's own app code ---------- */
+const APP_VERSION = 'v4 - setSysMode(Growing) + immediate save fix';
 const LEVELS = ['Off','Low','Medium','High'];
 const LEVEL_HEX = {Off:'00',Low:'55',Medium:'AA',High:'FF'};
 const AC_MODES = ['Off','A/C','Heating'];
@@ -269,6 +270,7 @@ function renderConnect(m){
     '<input type="text" id="deviceId" value="'+state.deviceId+'">'+
     '<button class="btn btn-primary" style="margin-top:14px" onclick="doConnect()">Connect</button>'+
     '<div class="hint">Relay URL and Device ID are saved on this phone. The token is never saved &mdash; you will re-enter it each visit.</div>'+
+    '<div class="hint" style="margin-top:14px;opacity:.6">App build: '+APP_VERSION+'</div>'+
   '</div>';
 }
 window.doConnect = async function(){
