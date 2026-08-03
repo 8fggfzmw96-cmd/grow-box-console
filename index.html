@@ -98,7 +98,25 @@
 
 <script>
 /* ---------- CONFIRMED constants, decoded directly from Mary's own app code ---------- */
-const APP_VERSION = 'v4 - setSysMode(Growing) + immediate save fix';
+/* CHANGELOG
+   v5 - Added relay-backed state storage (val.town SQLite) so the active grow survives
+        Private Browsing and works from any device/browser, not just this phone's local
+        storage. Push happens on start/end/jump/auto-correct; pull happens on Connect.
+        REQUIRES: relay val.town code updated with the new /state/ routes (see chat).
+   v4 - Added setSysMode('Growing') call when starting a grow (was previously missing
+        entirely). Fixed activeGrow being saved only AFTER all network calls instead of
+        before - could lose the grow record if the app was closed mid-sequence.
+   v3 - Fixed real bug: phase_info_str was fetched but never used to reconcile the true
+        current stage from the device. Added "View full plan" + manual jump-to-phase.
+        Removed dead code (unused helper functions/constants).
+   v2 - Corrected light zone / AC / air pump / eglass / color encodings using values
+        decoded directly from Mary's own decompiled app (formatIntensity hex map,
+        acModeMap, airPumpIntensityMap, etc). Switched units to Celsius. Added Sensors
+        tab. Switched API param from "arg" to "args" to match the real SDK.
+   v1 - First working version: Vitals dashboard, plant/stage picker wizard, manual
+        control, log. Talks to Particle via a val.town relay (browser CORS workaround).
+*/
+const APP_VERSION = 'v5 - relay-backed state (survives Private Browsing)';
 const LEVELS = ['Off','Low','Medium','High'];
 const LEVEL_HEX = {Off:'00',Low:'55',Medium:'AA',High:'FF'};
 const AC_MODES = ['Off','A/C','Heating'];
@@ -157,6 +175,33 @@ function cannabisStages(auto, type, flowerWeeks){
     stages.push({name:'Flush', PhaseMinDur:10,PhaseMaxDur:14, lightHours:12, tempDay:22,tempNight:17, airflow:'Max', pump:'30m Interval', plantHeight:null, coldLevel:'Low',warmLevel:'High'});
   }
   return stages;
+}
+
+/* ---------- remote state (survives Private Browsing / different devices) ---------- */
+function stateUrl(){ return state.relay.replace(/\/+$/,'') + '/state/' + state.deviceId; }
+async function pushRemoteState(){
+  if(!state.relay || !state.deviceId) return;
+  try{
+    await fetch(stateUrl(), {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({activeGrow: state.activeGrow, lightLevels: state.lightLevels, eglassClear: state.eglassClear, deviceColor: state.deviceColor})});
+  }catch(e){ /* best effort - local save already happened, this just failed to sync */ }
+}
+async function pullRemoteState(){
+  if(!state.relay || !state.deviceId) return false;
+  try{
+    const res = await fetch(stateUrl());
+    const json = await res.json();
+    if(json && json.data){
+      const remote = JSON.parse(json.data);
+      if(remote.activeGrow!==undefined) state.activeGrow = remote.activeGrow;
+      if(remote.lightLevels) state.lightLevels = remote.lightLevels;
+      if(remote.eglassClear!==undefined) state.eglassClear = remote.eglassClear;
+      if(remote.deviceColor) state.deviceColor = remote.deviceColor;
+      save();
+      return true;
+    }
+  }catch(e){ /* no remote state saved yet, or relay doesn't have /state/ routes - not fatal */ }
+  return false;
 }
 
 /* ---------- state ---------- */
@@ -279,7 +324,12 @@ window.doConnect = async function(){
   state.deviceId = document.getElementById('deviceId').value.trim();
   save();
   await connect();
-  if(state.connected) go('vitals');
+  if(state.connected){
+    toast('Checking for a saved grow on the relay...');
+    const found = await pullRemoteState();
+    if(found) toast('Restored saved grow from relay.');
+    go('vitals');
+  }
 };
 
 /* ---------- VITALS ---------- */
@@ -297,7 +347,7 @@ async function renderVitals(m){
   const g = state.activeGrow;
   var mismatched = false;
   if(g && phase && phase.curr_phase_index!==undefined && phase.curr_phase_index>=0 && phase.curr_phase_index<g.stages.length && phase.curr_phase_index!==g.currentIndex){
-    g.currentIndex = phase.curr_phase_index; mismatched = true; save();
+    g.currentIndex = phase.curr_phase_index; mismatched = true; save(); pushRemoteState();
   }
   const stage = g ? g.stages[g.currentIndex] : null;
   const deviceStartMs = phase && phase.cyc_start_epoch ? phase.cyc_start_epoch*1000 : null;
@@ -362,7 +412,7 @@ window.toggleEglass = async function(){
   catch(e){ toast('Failed: '+e.message); }
 };
 window.startWizard = function(){ state.wizard={}; go('wizardCategory'); };
-window.endGrow = function(){ if(confirm('End the current grow? This clears it from the app, it does not stop the device.')){ state.activeGrow=null; save(); render(); } };
+window.endGrow = function(){ if(confirm('End the current grow? This clears it from the app, it does not stop the device.')){ state.activeGrow=null; save(); pushRemoteState(); render(); } };
 function renderPlanView(m){
   const g = state.activeGrow;
   if(!g){ go('vitals'); return; }
@@ -384,7 +434,7 @@ window.jumpToPhase = async function(i){
   if(!confirm('Manually jump to phase "'+g.stages[i].name+'"? This overrides the automatic timing/height-based advance for this phase.')) return;
   try{
     const ret = await pushStage(g.stages[i], i, g.cycleId);
-    g.currentIndex = i; save();
+    g.currentIndex = i; save(); pushRemoteState();
     addLog('General', 'Manually jumped to phase "'+g.stages[i].name+'"');
     toast('Jumped to '+g.stages[i].name+' (code '+ret+')');
     go('vitals');
@@ -567,7 +617,7 @@ window.confirmStart = async function(){
   w.lightOn = document.getElementById('lightOn').value;
   const cycleId = 'cyc_'+Date.now();
   state.activeGrow = {categoryLabel:w.categoryLabel, plantLabel:w.plantLabel, stages:w.stages, currentIndex:w.startIndex, cycleId:cycleId, lightOn:w.lightOn, startedAt:Date.now()};
-  save(); /* save immediately, before any network calls - so closing the app mid-sequence can't lose this */
+  save(); pushRemoteState(); /* save immediately, before any network calls - so closing the app mid-sequence can't lose this */
   try{
     toast('Telling device it\'s actively growing...');
     await apiCall('setSysMode', 'Growing');
