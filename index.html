@@ -99,6 +99,11 @@
 <script>
 /* ---------- CONFIRMED constants, decoded directly from Mary's own app code ---------- */
 /* CHANGELOG
+   v7 - "End this grow" now actually sends real OFF commands to the device (grow lights
+        all zones off, water pump off, air pump off, AC off) before clearing the app's
+        record - previously it only cleared app state and never touched the device at
+        all. We don't have a confirmed dedicated "standby" system mode, so this sends
+        explicit off-commands to every actuator instead.
    v6 - Relay bug found: it was saved as type "script" instead of "http" in val.town,
         so it never had a live URL - not something visible from the code itself. Fixed
         on val.town's side. Made pushRemoteState report success/failure instead of
@@ -122,7 +127,7 @@
    v1 - First working version: Vitals dashboard, plant/stage picker wizard, manual
         control, log. Talks to Particle via a val.town relay (browser CORS workaround).
 */
-const APP_VERSION = 'v6 - relay auto-upload fix + visible sync errors';
+const APP_VERSION = 'v7 - End Grow now actually shuts down actuators';
 const LEVELS = ['Off','Low','Medium','High'];
 const LEVEL_HEX = {Off:'00',Low:'55',Medium:'AA',High:'FF'};
 const AC_MODES = ['Off','A/C','Heating'];
@@ -430,7 +435,25 @@ window.manualSync = async function(){
   const ok = await pushRemoteState();
   toast(ok ? 'Synced to relay.' : 'Sync failed - check relay is reachable.');
 };
-window.endGrow = function(){ if(confirm('End the current grow? This clears it from the app, it does not stop the device.')){ state.activeGrow=null; save(); pushRemoteState(); render(); } };
+window.endGrow = async function(){
+  if(!confirm('End the current grow? This will send OFF commands to lights, pumps, and AC, then clear the grow from the app.')) return;
+  toast('Shutting down actuators...');
+  const offOrder = [
+    ['setGrowLED','111111,000000000000'],
+    ['setWaterPump','0'],
+    ['setAirPump','0'],
+    ['setAC','0']
+  ];
+  var results = [];
+  for(var i=0;i<offOrder.length;i++){
+    try{ const ret = await apiCall(offOrder[i][0], offOrder[i][1]); results.push(offOrder[i][0]+':'+ret); }
+    catch(e){ results.push(offOrder[i][0]+':FAILED'); }
+  }
+  addLog('General','Ended grow, sent shutdown commands: '+results.join(', '));
+  state.activeGrow=null; save(); await pushRemoteState();
+  toast('Shut down and cleared. ('+results.join(', ')+')');
+  render();
+};
 function renderPlanView(m){
   const g = state.activeGrow;
   if(!g){ go('vitals'); return; }
