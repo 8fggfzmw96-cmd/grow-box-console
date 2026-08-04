@@ -99,6 +99,13 @@
 <script>
 /* ---------- CONFIRMED constants, decoded directly from Mary's own app code ---------- */
 /* CHANGELOG
+   v8 - Corrected understanding: setRGB is the status indicator light (front/top),
+        not a decorative "device color" - relabeled and given its own independent
+        on/off toggle on Vitals (bedroom-friendly), separate from grow state.
+        Added a real Water Change flow: tap "Next feed" on Vitals -> dim/off grow
+        lights, start/stop pump, log notes, auto-restores lights + resets the
+        countdown from the actual last logged change (not a fixed formula anymore).
+        Log entries now sync to the relay too (previously only the grow itself did).
    v7 - "End this grow" now actually sends real OFF commands to the device (grow lights
         all zones off, water pump off, air pump off, AC off) before clearing the app's
         record - previously it only cleared app state and never touched the device at
@@ -127,7 +134,7 @@
    v1 - First working version: Vitals dashboard, plant/stage picker wizard, manual
         control, log. Talks to Particle via a val.town relay (browser CORS workaround).
 */
-const APP_VERSION = 'v7 - End Grow now actually shuts down actuators';
+const APP_VERSION = 'v8 - status lights toggle + real water-change flow';
 const LEVELS = ['Off','Low','Medium','High'];
 const LEVEL_HEX = {Off:'00',Low:'55',Medium:'AA',High:'FF'};
 const AC_MODES = ['Off','A/C','Heating'];
@@ -194,7 +201,7 @@ async function pushRemoteState(){
   if(!state.relay || !state.deviceId) return false;
   try{
     const res = await fetch(stateUrl(), {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({activeGrow: state.activeGrow, lightLevels: state.lightLevels, eglassClear: state.eglassClear, deviceColor: state.deviceColor})});
+      body: JSON.stringify({activeGrow: state.activeGrow, lightLevels: state.lightLevels, eglassClear: state.eglassClear, deviceColor: state.deviceColor, statusLightsOff: state.statusLightsOff, log: state.log})});
     return res.ok;
   }catch(e){ return false; }
 }
@@ -209,6 +216,8 @@ async function pullRemoteState(){
       if(remote.lightLevels) state.lightLevels = remote.lightLevels;
       if(remote.eglassClear!==undefined) state.eglassClear = remote.eglassClear;
       if(remote.deviceColor) state.deviceColor = remote.deviceColor;
+      if(remote.statusLightsOff!==undefined) state.statusLightsOff = remote.statusLightsOff;
+      if(remote.log) state.log = remote.log;
       save();
       return true;
     }
@@ -222,7 +231,7 @@ let state = JSON.parse(localStorage.getItem('mary_state')||'null') || {
   screen:'vitals', relay:'', deviceId:'280042000d47393035313135',
   wizard:{}, activeGrow:null, connected:false, log:[],
   lightLevels:{vegFront:'Off',vegTop:'Off',vegBack:'Off',flowerFront:'Off',flowerTop:'Off',flowerBack:'Off'},
-  eglassClear:false, deviceColor:'#3fa1d7', tempUnit:'C', autoRefresh:false, lastRefreshed:null
+  eglassClear:false, deviceColor:'#3fa1d7', statusLightsOff:false, waterChangeIntervalDays:7, tempUnit:'C', autoRefresh:false, lastRefreshed:null
 };
 /* Token never persists, so connection state can't be trusted across a fresh page load either -
    without this, the header could show "Online" from before while every real call would fail. */
@@ -313,6 +322,7 @@ function render(){
   if(state.screen==='wizardStart') return renderWizardStart(m);
   if(state.screen==='wizardConfirm') return renderWizardConfirm(m);
   if(state.screen==='wizardPlanView') return renderPlanView(m);
+  if(state.screen==='waterChange') return renderWaterChange(m);
   if(state.screen==='log') return renderLog(m);
 }
 
@@ -351,6 +361,13 @@ window.doConnect = async function(){
 
 /* ---------- VITALS ---------- */
 function parseJsonSafe(str){ if(!str) return null; try{ return JSON.parse(str); }catch(e){ return null; } }
+function daysUntilNextChange(g){
+  if(!g) return null;
+  const last = g.lastWaterChange || g.startedAt;
+  const daysSince = Math.floor((Date.now()-last)/86400000);
+  const iv = state.waterChangeIntervalDays;
+  return (iv - (daysSince % iv)) || iv;
+}
 async function renderVitals(m){
   m.innerHTML = '<div class="card"><p class="hint">Loading...</p></div>';
   var sensorRaw='', phaseRaw='';
@@ -375,6 +392,9 @@ async function renderVitals(m){
 
   html += '<div class="toprow">'+
     '<div class="chip"><span>E-Glass '+(state.eglassClear?'Clear':'Opaque')+'</span><div class="switch'+(state.eglassClear?' on':'')+'" onclick="toggleEglass()"><div class="knob"></div></div></div>'+
+    '<div class="chip"><span>Status Lights '+(state.statusLightsOff?'Off':'On')+'</span><div class="switch'+(!state.statusLightsOff?' on':'')+'" onclick="toggleStatusLights()"><div class="knob"></div></div></div>'+
+  '</div>'+
+  '<div class="toprow">'+
     '<div class="chip" onclick="go(\'manual\')"><span>Manual</span><span style="color:var(--muted)">&rsaquo;</span></div>'+
   '</div>';
   html += '<div class="toprow">'+
@@ -390,7 +410,7 @@ async function renderVitals(m){
     '<div class="statgrid">'+
       '<div><div class="n">'+stage.name+'</div><div class="l">STAGE</div></div>'+
       '<div><div class="n">'+Math.floor((Date.now()-effectiveStart)/86400000)+'</div><div class="l">DAYS OLD</div></div>'+
-      '<div><div class="n">'+(7-(Math.floor((Date.now()-effectiveStart)/86400000)%7)||7)+'d</div><div class="l">NEXT FEED</div></div>'+
+      '<div onclick="go(\'waterChange\')" style="cursor:pointer;text-decoration:underline"><div class="n">'+daysUntilNextChange(g)+'d</div><div class="l">NEXT FEED (tap)</div></div>'+
     '</div>'+
     (mismatched?'<div class="warn">Device is actually on a different stage than this app expected &mdash; corrected automatically just now from the device\'s own status.</div>':'')+
     (deviceStartMs?'<div class="confirmed">Confirmed by device: cycle running since '+new Date(deviceStartMs).toLocaleString()+(phase.cycle_id?(' (cycle_id: '+phase.cycle_id+')'):'')+'. If this survived a power loss, that\'s the device\'s own resume-from-flash working, not the app.</div>':'<div class="hint">Device hasn\'t confirmed a running cycle yet on its own status string.</div>')+
@@ -411,7 +431,7 @@ async function renderVitals(m){
   html += '<div class="card"><h3>Reservoir</h3>'+
     '<div class="kv"><div class="k">Water level</div><div class="v">'+(sensor&&sensor.wLvl!==undefined?sensor.wLvl+'%':'-')+'</div></div>'+
     '<div class="kv"><div class="k">Water temp</div><div class="v">'+(sensor?fmtTemp(sensor.wTemp):'-')+'</div></div>'+
-    '<div class="kv"><div class="k">Next feed</div><div class="v">'+(g?(7-(Math.floor((Date.now()-effectiveStart)/86400000)%7)||7)+' days':'-')+'</div></div></div>';
+    '<div class="kv"><div class="k">Next change</div><div class="v"><span onclick="go(\'waterChange\')" style="cursor:pointer;text-decoration:underline">'+(g?daysUntilNextChange(g)+' days (tap to start)':'-')+'</span></div></div></div>';
 
   html += '<div class="card"><h3>Day / Night</h3>'+
     '<div class="kv"><div class="k">Light hours</div><div class="v">'+(stage?stage.lightHours+'h':'-')+'</div></div>'+
@@ -425,9 +445,17 @@ async function renderVitals(m){
 window.toggleUnit = function(){ state.tempUnit = state.tempUnit==='C'?'F':'C'; save(); renderVitals(document.getElementById('main')); };
 window.toggleAutoRefresh = function(){ state.autoRefresh = !state.autoRefresh; save(); startAutoRefreshIfNeeded(); render(); };
 window.toggleEglass = async function(){
-  state.eglassClear = !state.eglassClear; save();
+  state.eglassClear = !state.eglassClear; save(); pushRemoteState();
   try{ await apiCall('setEglass', state.eglassClear?'1':'0'); renderVitals(document.getElementById('main')); }
   catch(e){ toast('Failed: '+e.message); }
+};
+window.toggleStatusLights = async function(){
+  state.statusLightsOff = !state.statusLightsOff; save(); pushRemoteState();
+  try{
+    if(state.statusLightsOff){ await apiCall('setRGB','11,000000,000000'); toast('Status lights off (device may re-assert its own status color periodically - unconfirmed).'); }
+    else { await apiCall('setRGB','11,'+state.deviceColor.slice(1,3)+','+state.deviceColor.slice(3,5)+','+state.deviceColor.slice(5,7)); toast('Status lights back on.'); }
+    renderVitals(document.getElementById('main'));
+  }catch(e){ toast('Failed: '+e.message); }
 };
 window.startWizard = function(){ state.wizard={}; go('wizardCategory'); };
 window.manualSync = async function(){
@@ -480,6 +508,36 @@ window.jumpToPhase = async function(i){
     toast('Jumped to '+g.stages[i].name+' (code '+ret+')');
     go('vitals');
   }catch(e){ toast('Failed: '+e.message); }
+};
+
+function renderWaterChange(m){
+  const g = state.activeGrow;
+  m.innerHTML =
+  '<div class="backbar"><span onclick="go(\'vitals\')">&larr; Vitals</span></div>'+
+  '<h2>Water Change</h2>'+
+  (g?('<div class="card"><p class="hint">Next change normally due in '+daysUntilNextChange(g)+' days &mdash; starting one now is fine, it just resets the countdown from today.</p></div>'):'<div class="warn">No active grow, but you can still run the pump manually below.</div>')+
+  '<div class="card"><h3>1. Prep</h3>'+
+  '<button class="btn btn-ghost" onclick="manualCall(\'setGrowLED\',\'111111,555555555555\')">Dim grow lights (Low)</button>'+
+  '<button class="btn btn-ghost" onclick="manualCall(\'setGrowLED\',\'111111,000000000000\')">Grow lights off</button>'+
+  '</div>'+
+  '<div class="card"><h3>2. Drain / run pump</h3>'+
+  '<div class="btn-row"><button class="btn btn-ghost" onclick="manualCall(\'setWaterPump\',\'1\')">Pump On</button>'+
+  '<button class="btn btn-ghost" onclick="manualCall(\'setWaterPump\',\'0\')">Pump Off</button></div>'+
+  '<div class="hint">Watch the tank directly &mdash; there\'s no sensor feedback loop here, this just runs the pump.</div>'+
+  '</div>'+
+  '<div class="card"><h3>3. Log it</h3>'+
+  '<textarea id="wcNote" placeholder="Nutrients added, pH adjusted, anything worth remembering..."></textarea>'+
+  '<button class="btn btn-primary" style="margin-top:10px" onclick="finishWaterChange()">Log &amp; Restore Lights</button>'+
+  '</div>';
+}
+window.finishWaterChange = async function(){
+  const note = document.getElementById('wcNote').value.trim();
+  addLog('Watering', note || 'Reservoir changed');
+  const g = state.activeGrow;
+  if(g){ g.lastWaterChange = Date.now(); save(); pushRemoteState(); }
+  try{ await manualCall('setWaterPump','0'); if(g) await pushStage(g.stages[g.currentIndex], g.currentIndex, g.cycleId); }catch(e){}
+  toast('Logged. Lights restored to current phase.');
+  go('vitals');
 };
 
 /* ---------- SENSORS (raw dump) ---------- */
@@ -549,7 +607,7 @@ function renderManual(m){
   m.innerHTML =
   '<div class="card">'+groupsHtml+
   '<div class="confirmed">Encoding confirmed from Mary\'s own app source.</div></div>'+
-  '<div class="card"><h3>Device color</h3>'+
+  '<div class="card"><h3>Status light color</h3><p class="hint">This is the front/top status indicator, not a grow light &mdash; independent on/off toggle lives on Vitals.</p>'+
   '<input type="color" id="colorPick" value="'+state.deviceColor+'">'+
   '<button class="btn btn-ghost" style="margin-top:10px" onclick="setDeviceColor()">Set Color</button></div>'+
   '<div class="card"><h3>AC mode</h3><div class="zoneRow" style="border:none"><div class="levelBtns">'+acBtns+'</div></div></div>'+
@@ -657,7 +715,7 @@ window.confirmStart = async function(){
   const w=state.wizard;
   w.lightOn = document.getElementById('lightOn').value;
   const cycleId = 'cyc_'+Date.now();
-  state.activeGrow = {categoryLabel:w.categoryLabel, plantLabel:w.plantLabel, stages:w.stages, currentIndex:w.startIndex, cycleId:cycleId, lightOn:w.lightOn, startedAt:Date.now()};
+  state.activeGrow = {categoryLabel:w.categoryLabel, plantLabel:w.plantLabel, stages:w.stages, currentIndex:w.startIndex, cycleId:cycleId, lightOn:w.lightOn, startedAt:Date.now(), lastWaterChange:Date.now()};
   save(); pushRemoteState(); /* save immediately, before any network calls - so closing the app mid-sequence can't lose this */
   try{
     toast('Telling device it\'s actively growing...');
@@ -677,7 +735,7 @@ window.confirmStart = async function(){
 };
 
 /* ---------- LOG ---------- */
-function addLog(tag, note){ state.log.unshift({tag:tag,note:note,time:Date.now()}); save(); }
+function addLog(tag, note){ state.log.unshift({tag:tag,note:note,time:Date.now()}); save(); pushRemoteState(); }
 function renderLog(m){
   var rows='';
   if(state.log.length===0){ rows = '<p class="hint">No entries yet.</p>'; }
