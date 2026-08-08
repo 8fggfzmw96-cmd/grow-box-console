@@ -151,7 +151,7 @@
    v1 - First working version: Vitals dashboard, plant/stage picker wizard, manual
         control, log. Talks to Particle via a val.town relay (browser CORS workaround).
 */
-const APP_VERSION = 'v9 - research strain library + split logs';
+const APP_VERSION = 'v10 - fixed state migration bug + logging gap + refresh flicker';
 const LEVELS = ['Off','Low','Medium','High'];
 const LEVEL_HEX = {Off:'00',Low:'55',Medium:'AA',High:'FF'};
 const AC_MODES = ['Off','A/C','Heating'];
@@ -289,12 +289,15 @@ const VEGETABLE_LIBRARY = [
 ];
 /* ---------- state ---------- */
 let token='';
-let state = JSON.parse(localStorage.getItem('mary_state')||'null') || {
+const STATE_DEFAULTS = {
   screen:'vitals', relay:'', deviceId:'280042000d47393035313135',
   wizard:{}, activeGrow:null, connected:false, log:[],
   lightLevels:{vegFront:'Off',vegTop:'Off',vegBack:'Off',flowerFront:'Off',flowerTop:'Off',flowerBack:'Off'},
-  eglassClear:false, deviceColor:'#3fa1d7', statusLightsOff:false, waterChangeIntervalDays:7, tempUnit:'C', autoRefresh:false, lastRefreshed:null
+  eglassClear:false, deviceColor:'#3fa1d7', statusLightsOff:false, waterChangeIntervalDays:7, tempUnit:'C', autoRefresh:false, lastRefreshed:null, logView:'plant'
 };
+let state = JSON.parse(localStorage.getItem('mary_state')||'null') || {};
+for(var _k in STATE_DEFAULTS){ if(state[_k]===undefined) state[_k] = STATE_DEFAULTS[_k]; }
+if(state.activeGrow && state.activeGrow.lastWaterChange===undefined) state.activeGrow.lastWaterChange = state.activeGrow.startedAt;
 /* Token never persists, so connection state can't be trusted across a fresh page load either -
    without this, the header could show "Online" from before while every real call would fail. */
 state.connected = false;
@@ -312,8 +315,8 @@ function stopAutoRefresh(){ if(refreshTimer){ clearInterval(refreshTimer); refre
 function startAutoRefreshIfNeeded(){
   stopAutoRefresh();
   if(!state.autoRefresh) return;
-  if(state.screen==='vitals') refreshTimer=setInterval(function(){ if(state.screen==='vitals') renderVitals(document.getElementById('main')); }, 15000);
-  if(state.screen==='sensors') refreshTimer=setInterval(function(){ if(state.screen==='sensors') renderSensors(document.getElementById('main')); }, 15000);
+  if(state.screen==='vitals') refreshTimer=setInterval(async function(){ if(state.screen==='vitals'){ var y=window.scrollY; await renderVitals(document.getElementById('main')); window.scrollTo(0,y); } }, 15000);
+  if(state.screen==='sensors') refreshTimer=setInterval(async function(){ if(state.screen==='sensors'){ var y=window.scrollY; await renderSensors(document.getElementById('main')); window.scrollTo(0,y); } }, 15000);
 }
 function go(screen){ state.screen=screen; save(); render(); startAutoRefreshIfNeeded(); }
 
@@ -699,8 +702,8 @@ window.setDeviceColor = async function(){
   catch(e){ toast('Failed: '+e.message); }
 };
 window.manualCall = async function(fn,arg){
-  try{ const ret = await apiCall(fn,String(arg)); toast(fn+'("'+arg+'") -> '+ret); }
-  catch(e){ toast('Failed: '+e.message); }
+  try{ const ret = await apiCall(fn,String(arg)); toast(fn+'("'+arg+'") -> '+ret); addLog(fn, fn+'("'+arg+'") returned '+ret, 'system'); }
+  catch(e){ toast('Failed: '+e.message); addLog(fn, fn+'("'+arg+'") FAILED: '+e.message, 'system'); }
 };
 window.resync = async function(){
   const g=state.activeGrow;
